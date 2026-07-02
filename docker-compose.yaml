@@ -11,7 +11,9 @@
 #     (and set COOKIE_SECURE) once HTTPS works for you.
 #
 # Adjust before deploying:
-#   1. The host path for /data — must be an existing dataset/directory.
+#   1. The host path for /data — must be an existing dataset/directory,
+#      owned by the container user (TrueNAS "apps" user):
+#        chown -R 568:568 /mnt/tank/apps/financial-adviser
 #   2. Host ports 3443/3001 if they are taken.
 
 services:

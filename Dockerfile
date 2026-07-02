@@ -18,7 +18,10 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-RUN addgroup -S app && adduser -S app -G app && mkdir -p /data && chown app:app /data
+# UID/GID 568 = the TrueNAS SCALE "apps" user, so a host dataset owned by
+# 568:568 is writable without extra ACL work.
+RUN addgroup -g 568 -S app && adduser -u 568 -S app -G app \
+    && mkdir -p /data && chown app:app /data
 
 COPY --from=builder --chown=app:app /app/.next/standalone ./
 COPY --from=builder --chown=app:app /app/.next/static ./.next/static

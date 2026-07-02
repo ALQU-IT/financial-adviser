@@ -39,6 +39,10 @@ the admin account. Data is stored in `./data/finance.db` (override with the
 1. Build/publish the image (the included GitHub Action publishes
    `ghcr.io/<owner>/financial-adviser:latest` on every push to `main`), or
    build locally: `docker build -t financial-adviser .`
+   The container runs as UID/GID **568:568** (the TrueNAS `apps` user) — give
+   it the data dataset once: `chown -R 568:568 /mnt/<pool>/<dataset>`
+   (otherwise the app fails with `SQLITE_CANTOPEN: unable to open database
+   file`).
 2. In TrueNAS: **Apps → Discover Apps → ⋮ → Install via YAML** and paste
    [docker-compose.yaml](docker-compose.yaml) (adjust the host path and port),
    or configure the same values manually via **Custom App**:
