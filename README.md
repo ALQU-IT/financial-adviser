@@ -57,6 +57,8 @@ the admin account. Data is stored in `./data/finance.db` (override with the
 The compose file includes a Caddy sidecar that serves the app at
 `https://<nas-ip>:3443` with a self-signed certificate from its own local CA
 (auto-generated, auto-renewed, persisted in the `caddy_data` volume).
+Port `3001` redirects to HTTPS, the app publishes no plain-HTTP port itself,
+and the session cookie is marked `Secure` (`COOKIE_SECURE=true`).
 
 **Trusting the certificate (optional):** browsers warn about self-signed
 certs. To remove the warning, export Caddy's root CA once and import it on
@@ -65,9 +67,6 @@ your devices (Settings → Certificates → Trusted Roots, or the keychain):
 ```bash
 docker cp financial-adviser-tls:/data/caddy/pki/authorities/local/root.crt .
 ```
-
-Once HTTPS works, make it the only door: remove the `3001:3000` port mapping
-and set `COOKIE_SECURE: "true"` in the compose file, then update the app.
 
 Environment variables:
 

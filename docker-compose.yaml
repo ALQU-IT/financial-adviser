@@ -7,8 +7,7 @@
 #   https://<nas-ip>:3443  — TLS via a self-signed certificate (Caddy).
 #     The browser will warn once per device; to remove the warning, trust
 #     Caddy's root CA (see "Trusting the certificate" in the README).
-#   http://<nas-ip>:3001   — plain HTTP fallback. Remove this port mapping
-#     (and set COOKIE_SECURE) once HTTPS works for you.
+#   http://<nas-ip>:3001   — redirects to https://<nas-ip>:3443.
 #
 # Adjust before deploying:
 #   1. The host path for /data — must be an existing dataset/directory,
@@ -21,17 +20,14 @@ services:
     image: ghcr.io/alqu-it/financial-adviser:latest
     container_name: financial-adviser
     restart: unless-stopped
-    ports:
-      # Plain-HTTP fallback — delete this mapping to go HTTPS-only.
-      - "3001:3000"
+    # No published ports — only reachable through Caddy (HTTPS).
     volumes:
       # Holds the SQLite database — point this at a dataset you snapshot.
       - /mnt/tank/apps/financial-adviser:/data
     environment:
       TZ: Europe/Berlin
-      # Uncomment for HTTPS-only use (marks the session cookie Secure;
-      # logging in over plain HTTP stops working):
-      # COOKIE_SECURE: "true"
+      # All access is HTTPS now, so the session cookie can be Secure.
+      COOKIE_SECURE: "true"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/login"]
       interval: 60s
@@ -39,13 +35,15 @@ services:
       retries: 3
       start_period: 15s
 
-  # TLS termination with an auto-generated, auto-renewing self-signed cert.
+  # TLS termination with an auto-generated, auto-renewing self-signed cert,
+  # plus an HTTP→HTTPS redirect on the old plain-HTTP port.
   caddy:
     image: caddy:2-alpine
     container_name: financial-adviser-tls
     restart: unless-stopped
     ports:
       - "3443:3443"
+      - "3001:3001"
     configs:
       - source: caddyfile
         target: /etc/caddy/Caddyfile
@@ -70,6 +68,11 @@ configs:
           on_demand
         }
         reverse_proxy financial-adviser:3000
+      }
+
+      # Old HTTP port: send everyone to HTTPS.
+      http://:3001 {
+        redir https://{host}:3443{uri} 308
       }
 
 volumes:
