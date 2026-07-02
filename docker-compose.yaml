@@ -3,9 +3,16 @@
 # TrueNAS SCALE: Apps → Discover Apps → ⋮ (three dots) → Install via YAML,
 # paste this file. Or run `docker compose up -d` on any Docker host.
 #
+# Access:
+#   https://<nas-ip>:3443  — TLS via a self-signed certificate (Caddy).
+#     The browser will warn once per device; to remove the warning, trust
+#     Caddy's root CA (see "Trusting the certificate" in the README).
+#   http://<nas-ip>:3001   — plain HTTP fallback. Remove this port mapping
+#     (and set COOKIE_SECURE) once HTTPS works for you.
+#
 # Adjust before deploying:
 #   1. The host path for /data — must be an existing dataset/directory.
-#   2. The host port (left side of "3001:3000") if 3001 is taken.
+#   2. Host ports 3443/3001 if they are taken.
 
 services:
   financial-adviser:
@@ -13,14 +20,15 @@ services:
     container_name: financial-adviser
     restart: unless-stopped
     ports:
-      # host:container — open http://<nas-ip>:3001
+      # Plain-HTTP fallback — delete this mapping to go HTTPS-only.
       - "3001:3000"
     volumes:
       # Holds the SQLite database — point this at a dataset you snapshot.
       - /mnt/tank/apps/financial-adviser:/data
     environment:
       TZ: Europe/Berlin
-      # Uncomment when serving through an HTTPS reverse proxy:
+      # Uncomment for HTTPS-only use (marks the session cookie Secure;
+      # logging in over plain HTTP stops working):
       # COOKIE_SECURE: "true"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/login"]
@@ -28,3 +36,39 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  # TLS termination with an auto-generated, auto-renewing self-signed cert.
+  caddy:
+    image: caddy:2-alpine
+    container_name: financial-adviser-tls
+    restart: unless-stopped
+    ports:
+      - "3443:3443"
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      # Persists Caddy's local CA so the certificate survives updates —
+      # trust it once per device and it stays trusted.
+      - caddy_data:/data
+    depends_on:
+      - financial-adviser
+
+configs:
+  caddyfile:
+    content: |
+      {
+        local_certs
+        skip_install_trust
+        admin off
+      }
+
+      https://:3443 {
+        tls internal {
+          on_demand
+        }
+        reverse_proxy financial-adviser:3000
+      }
+
+volumes:
+  caddy_data:

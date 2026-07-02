@@ -48,6 +48,23 @@ the admin account. Data is stored in `./data/finance.db` (override with the
      SQLite database; snapshot/replicate it for backups
 3. Open `http://<nas-ip>:<port>`, create the admin account, done.
 
+### HTTPS (self-signed)
+
+The compose file includes a Caddy sidecar that serves the app at
+`https://<nas-ip>:3443` with a self-signed certificate from its own local CA
+(auto-generated, auto-renewed, persisted in the `caddy_data` volume).
+
+**Trusting the certificate (optional):** browsers warn about self-signed
+certs. To remove the warning, export Caddy's root CA once and import it on
+your devices (Settings → Certificates → Trusted Roots, or the keychain):
+
+```bash
+docker cp financial-adviser-tls:/data/caddy/pki/authorities/local/root.crt .
+```
+
+Once HTTPS works, make it the only door: remove the `3001:3000` port mapping
+and set `COOKIE_SECURE: "true"` in the compose file, then update the app.
+
 Environment variables:
 
 | Variable | Default | Purpose |
