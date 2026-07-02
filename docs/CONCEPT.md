@@ -41,22 +41,41 @@ where your money goes, and get concrete suggestions for where you can save.
 
 ### 2.3 Privacy: local-first
 
-Financial data is sensitive, so the MVP should be a **self-contained app the
-user runs themselves** (locally or on their own server):
+Financial data is sensitive, so the app is **self-hosted on the user's own
+server** — concretely: a Docker container deployed as a Custom App on
+**TrueNAS SCALE**.
 
-- All data in a local **SQLite** database — no accounts, no cloud storage of
-  statements.
+- All data in a **SQLite** database on a TrueNAS dataset — no cloud storage,
+  and TrueNAS snapshots/replication give free backups.
 - The only outbound traffic is the optional LLM categorization fallback, and
   even that sends merchant names only.
-- This also keeps the MVP simple: no auth, no multi-tenancy, no GDPR-scale
-  infrastructure. If it ever becomes a hosted product, that's a v2 decision.
+- **User login is required** (the app is reachable by everyone on the LAN):
+  username/password accounts with session cookies via Auth.js. Registration is
+  disabled — an admin creates accounts. Each user (or shared household
+  account) sees only their own statements and transactions.
+- Still no public-internet exposure: for access from outside the home network,
+  use a VPN (TrueNAS has built-in WireGuard/Tailscale apps) rather than port
+  forwarding.
 
-### 2.4 Tech stack (recommendation)
+### 2.4 Deployment on TrueNAS SCALE
+
+1. The app ships as a single **Docker image** (multi-stage build, `next build`
+   → standalone output), published to GitHub Container Registry via a GitHub
+   Action.
+2. On TrueNAS SCALE (Electric Eel and later run Docker natively): **Apps →
+   Custom App**, point it at the image, map a host path (dataset) to
+   `/data` for the SQLite file and uploaded statements, expose one port.
+3. Optional: HTTPS + nice hostname via a reverse proxy app (Nginx Proxy
+   Manager / Traefik) on the NAS.
+4. Updates = push a new image tag, hit "update" in the TrueNAS UI.
+
+### 2.5 Tech stack (recommendation)
 
 | Layer | Choice | Why |
 |---|---|---|
-| App framework | **Next.js (TypeScript)** | One codebase for UI + API routes (upload, parsing); easy local deploy |
-| Database | **SQLite** via Drizzle ORM | Zero-setup, perfect for local-first single user |
+| App framework | **Next.js (TypeScript)** | One codebase for UI + API routes (upload, parsing); single Docker image |
+| Auth | **Auth.js** (credentials provider) | Simple username/password login with session cookies; no external identity provider needed |
+| Database | **SQLite** via Drizzle ORM | Zero-setup, ideal for a handful of household users; lives on a TrueNAS dataset |
 | CSV parsing | **Papa Parse** | Robust, handles delimiter/encoding quirks |
 | Charts | **Recharts** | Simple declarative charts for the dashboard |
 | Styling | **Tailwind CSS** | Fast to build a clean dashboard UI |
@@ -68,7 +87,8 @@ codebase and easy UI iteration.
 
 ## 3. Data model (minimum)
 
-- **statements** — id, provider, period (month), uploaded_at, source filename
+- **users** — id, username, password_hash (argon2/bcrypt), role (admin/user)
+- **statements** — id, user_id, provider, period (month), uploaded_at, source filename
 - **transactions** — id, statement_id, date, merchant (raw + normalized),
   amount, currency, category_id, is_recurring
 - **categories** — id, name, icon/color, budget (optional)
@@ -92,10 +112,10 @@ codebase and easy UI iteration.
 
 | Phase | Scope |
 |---|---|
-| **1 — MVP** | CSV upload + column mapping, rule-based categorization, monthly overview dashboard, transaction list with manual re-categorization |
+| **1 — MVP** | User login (Auth.js, admin-created accounts), CSV upload + column mapping, rule-based categorization, monthly overview dashboard, transaction list with manual re-categorization; Dockerfile + deploy as TrueNAS Custom App |
 | **2 — Insights** | Recurring-charge detection, month-over-month trends, insight cards, budgets per category |
 | **3 — Smarter input** | LLM categorization fallback, PDF statement import, multi-account support |
-| **4 — Optional** | Bank API integration, hosted multi-user version (auth, encryption at rest, GDPR) |
+| **4 — Optional** | Bank API integration, public hosted version (encryption at rest, GDPR, open registration) |
 
 ## 6. Risks & gotchas
 
