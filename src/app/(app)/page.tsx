@@ -27,9 +27,9 @@ export default async function DashboardPage({
 
   if (months.length === 0) {
     return (
-      <div className="rounded-xl bg-white p-10 text-center shadow-sm">
+      <div className="rounded-xl bg-white dark:bg-slate-900 p-10 text-center shadow-sm">
         <h1 className="text-lg font-semibold">Welcome to Financial Adviser</h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+        <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-300">
           Upload your first credit card statement (CSV) and you&apos;ll see
           where your money goes — by category, merchant and month.
         </p>
@@ -144,7 +144,7 @@ export default async function DashboardPage({
               className={`rounded-full px-3 py-1 text-sm ${
                 m === month
                   ? "bg-indigo-600 text-white"
-                  : "bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
               }`}
             >
               {formatMonth(m)}
@@ -155,8 +155,8 @@ export default async function DashboardPage({
 
       {/* Stat tiles */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Spent in {formatMonth(month)}
           </p>
           <p className="mt-1 text-2xl font-semibold">
@@ -165,7 +165,7 @@ export default async function DashboardPage({
           {delta != null && (
             <p
               className={`mt-1 text-sm ${
-                delta > 0 ? "text-red-600" : "text-emerald-700"
+                delta > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-700 dark:text-emerald-400"
               }`}
             >
               {delta > 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}% vs{" "}
@@ -173,27 +173,27 @@ export default async function DashboardPage({
             </p>
           )}
         </div>
-        <div className="rounded-xl bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Refunds &amp; credits
           </p>
-          <p className="mt-1 text-2xl font-semibold text-emerald-700">
+          <p className="mt-1 text-2xl font-semibold text-emerald-700 dark:text-emerald-400">
             {formatCents(totals.income)}
           </p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {totals.count} transactions
           </p>
         </div>
-        <div className="rounded-xl bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Needs review
           </p>
           <p className="mt-1 text-2xl font-semibold">{uncategorized.count}</p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             uncategorized —{" "}
             <Link
               href={`/transactions?m=${month}`}
-              className="text-indigo-600 hover:underline"
+              className="text-indigo-600 hover:underline dark:text-indigo-400"
             >
               categorize now
             </Link>
@@ -202,8 +202,8 @@ export default async function DashboardPage({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-700">
+        <section className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
             Spending by category
           </h2>
           <CategoryBars
@@ -215,8 +215,8 @@ export default async function DashboardPage({
           />
         </section>
 
-        <section className="rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-700">
+        <section className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
             Monthly spend (last {trend.length} months)
           </h2>
           <TrendBars
@@ -230,16 +230,16 @@ export default async function DashboardPage({
         </section>
       </div>
 
-      <section className="rounded-xl bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-700">Top merchants</h2>
+      <section className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Top merchants</h2>
         <table className="mt-3 w-full text-sm">
           <tbody>
             {topMerchants.map((m, i) => (
-              <tr key={i} className="border-b border-slate-100 last:border-0">
+              <tr key={i} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                 <td className="max-w-md truncate py-2 pr-4" title={m.merchant}>
                   {m.merchant}
                 </td>
-                <td className="py-2 pr-4 text-slate-500">
+                <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
                   {m.count}× this month
                 </td>
                 <td className="py-2 text-right font-medium tabular-nums">

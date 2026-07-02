@@ -14,24 +14,24 @@ export default async function UsersPage() {
     <div className="max-w-2xl space-y-6">
       <div>
         <h1 className="text-lg font-semibold">Users</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Each user has their own statements, transactions and rules.
         </p>
       </div>
-      <div className="rounded-xl bg-white shadow-sm">
+      <div className="rounded-xl bg-white dark:bg-slate-900 shadow-sm">
         <table className="w-full text-sm">
           <tbody>
             {users.map((u) => (
-              <tr key={u.id} className="border-b border-slate-100 last:border-0">
+              <tr key={u.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                 <td className="px-4 py-3 font-medium">{u.username}</td>
-                <td className="px-4 py-3 text-slate-500">{u.role}</td>
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{u.role}</td>
                 <td className="px-4 py-3 text-right">
                   {u.id !== user.id && (
                     <form action={deleteUser}>
                       <input type="hidden" name="id" value={u.id} />
                       <button
                         type="submit"
-                        className="text-xs text-red-600 hover:underline"
+                        className="text-xs text-red-600 dark:text-red-400 hover:underline"
                       >
                         Delete (incl. their data)
                       </button>
@@ -43,8 +43,8 @@ export default async function UsersPage() {
           </tbody>
         </table>
       </div>
-      <div className="rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-700">Add a user</h2>
+      <div className="rounded-xl bg-white dark:bg-slate-900 p-6 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Add a user</h2>
         <NewUserForm />
       </div>
     </div>

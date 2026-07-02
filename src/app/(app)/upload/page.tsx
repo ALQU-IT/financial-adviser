@@ -35,7 +35,7 @@ export default async function UploadPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">Upload a statement</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Export your credit card statement as CSV and upload it here. You can
           adjust which columns contain the date, description and amount.
         </p>
@@ -49,10 +49,10 @@ export default async function UploadPage() {
       {past.length > 0 && (
         <section>
           <h2 className="text-base font-semibold">Imported statements</h2>
-          <div className="mt-3 overflow-x-auto rounded-xl bg-white shadow-sm">
+          <div className="mt-3 overflow-x-auto rounded-xl bg-white dark:bg-slate-900 shadow-sm">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="px-4 py-3">Provider</th>
                   <th className="px-4 py-3">File</th>
                   <th className="px-4 py-3">Uploaded</th>
@@ -63,10 +63,10 @@ export default async function UploadPage() {
               </thead>
               <tbody>
                 {past.map((s) => (
-                  <tr key={s.id} className="border-b border-slate-100">
+                  <tr key={s.id} className="border-b border-slate-100 dark:border-slate-800">
                     <td className="px-4 py-3">{s.provider}</td>
-                    <td className="px-4 py-3 text-slate-500">{s.filename}</td>
-                    <td className="px-4 py-3 text-slate-500">
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{s.filename}</td>
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                       {s.uploadedAt.toLocaleDateString("en-GB")}
                     </td>
                     <td className="px-4 py-3 text-right">{s.txCount}</td>
@@ -78,7 +78,7 @@ export default async function UploadPage() {
                         <input type="hidden" name="id" value={s.id} />
                         <button
                           type="submit"
-                          className="text-xs text-red-600 hover:underline"
+                          className="text-xs text-red-600 dark:text-red-400 hover:underline"
                         >
                           Delete
                         </button>
@@ -89,7 +89,7 @@ export default async function UploadPage() {
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             Deleting a statement removes all of its transactions — useful if an
             import went wrong.
           </p>

@@ -19,26 +19,26 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="mt-6 space-y-4">
       <label className="block">
-        <span className="text-sm font-medium text-slate-700">Username</span>
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Username</span>
         <input
           name="username"
           autoComplete="username"
           required
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
         />
       </label>
       <label className="block">
-        <span className="text-sm font-medium text-slate-700">Password</span>
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Password</span>
         <input
           name="password"
           type="password"
           autoComplete="current-password"
           required
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
         />
       </label>
       {error && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
           {error}
         </p>
       )}

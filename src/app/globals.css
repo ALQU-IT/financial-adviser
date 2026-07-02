@@ -1,9 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
+  /* Chart chrome + marks (light) */
+  --chart-bar: #2a78d6;
+  --chart-bar-emphasis: #1c5cab;
+  --chart-grid: #e1e0d9;
+  --chart-muted: #898781;
+  --chart-axis: #c3c2b7;
+  --chart-ink: #52514e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Same hues, stepped for the dark surface */
+    --chart-bar: #3987e5;
+    --chart-bar-emphasis: #86b6ef;
+    --chart-grid: #334155;
+    --chart-muted: #94a3b8;
+    --chart-axis: #475569;
+    --chart-ink: #cbd5e1;
+  }
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-slate-100 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }

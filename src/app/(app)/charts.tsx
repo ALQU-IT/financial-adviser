@@ -13,11 +13,12 @@ import {
 } from "recharts";
 
 // Single-hue marks from one blue ramp: identity comes from axis labels, the
-// darker step only emphasizes the selected month.
-const BAR = "#2a78d6";
-const BAR_EMPHASIS = "#1c5cab";
-const GRID = "#e1e0d9";
-const MUTED = "#898781";
+// emphasis step only marks the selected month. Values live in globals.css as
+// CSS variables so the charts follow the light/dark scheme.
+const BAR = "var(--chart-bar)";
+const BAR_EMPHASIS = "var(--chart-bar-emphasis)";
+const GRID = "var(--chart-grid)";
+const MUTED = "var(--chart-muted)";
 
 const euro = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -36,9 +37,9 @@ function EuroTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md">
-      <p className="font-medium text-slate-900">{label}</p>
-      <p className="text-slate-600">{euro.format(Number(payload[0].value))}</p>
+    <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 px-3 py-2 text-xs shadow-md">
+      <p className="font-medium text-slate-900 dark:text-slate-100">{label}</p>
+      <p className="text-slate-600 dark:text-slate-300">{euro.format(Number(payload[0].value))}</p>
     </div>
   );
 }
@@ -49,7 +50,7 @@ export function CategoryBars({
   data: { name: string; color: string; spend: number }[];
 }) {
   if (data.length === 0) {
-    return <p className="mt-4 text-sm text-slate-500">No expenses this month.</p>;
+    return <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No expenses this month.</p>;
   }
   const height = Math.max(160, data.length * 36 + 20);
   return (
@@ -68,10 +69,10 @@ export function CategoryBars({
             width={150}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "#52514e", fontSize: 12 }}
+            tick={{ fill: "var(--chart-ink)", fontSize: 12 }}
           />
           <Tooltip
-            cursor={{ fill: "rgba(0,0,0,0.04)" }}
+            cursor={{ fill: "color-mix(in srgb, var(--chart-muted) 12%, transparent)" }}
             content={<EuroTooltip />}
           />
           <Bar dataKey="spend" barSize={16} radius={[0, 4, 4, 0]} fill={BAR}>
@@ -104,7 +105,7 @@ export function TrendBars({
           <XAxis
             dataKey="label"
             tickLine={false}
-            axisLine={{ stroke: "#c3c2b7" }}
+            axisLine={{ stroke: "var(--chart-axis)" }}
             tick={{ fill: MUTED, fontSize: 11 }}
           />
           <YAxis
@@ -115,7 +116,7 @@ export function TrendBars({
             width={70}
           />
           <Tooltip
-            cursor={{ fill: "rgba(0,0,0,0.04)" }}
+            cursor={{ fill: "color-mix(in srgb, var(--chart-muted) 12%, transparent)" }}
             content={<EuroTooltip />}
           />
           <Bar dataKey="spend" barSize={28} radius={[4, 4, 0, 0]}>

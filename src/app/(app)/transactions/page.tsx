@@ -49,8 +49,8 @@ export default async function TransactionsPage({
 
   if (months.length === 0) {
     return (
-      <div className="rounded-xl bg-white p-8 text-center shadow-sm">
-        <p className="text-slate-600">No transactions yet.</p>
+      <div className="rounded-xl bg-white dark:bg-slate-900 p-8 text-center shadow-sm">
+        <p className="text-slate-600 dark:text-slate-300">No transactions yet.</p>
         <Link
           href="/upload"
           className="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
@@ -73,7 +73,7 @@ export default async function TransactionsPage({
               className={`rounded-full px-3 py-1 text-sm ${
                 m === month
                   ? "bg-indigo-600 text-white"
-                  : "bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
               }`}
             >
               {formatMonth(m)}
@@ -82,10 +82,10 @@ export default async function TransactionsPage({
         </nav>
       </div>
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl bg-white dark:bg-slate-900 shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Description</th>
               <th className="px-4 py-3">Category</th>
@@ -94,8 +94,8 @@ export default async function TransactionsPage({
           </thead>
           <tbody>
             {txs.map((tx) => (
-              <tr key={tx.id} className="border-b border-slate-100">
-                <td className="px-4 py-2 whitespace-nowrap text-slate-500">
+              <tr key={tx.id} className="border-b border-slate-100 dark:border-slate-800">
+                <td className="px-4 py-2 whitespace-nowrap text-slate-500 dark:text-slate-400">
                   {tx.date}
                 </td>
                 <td className="max-w-md truncate px-4 py-2" title={tx.merchant}>
@@ -110,7 +110,7 @@ export default async function TransactionsPage({
                 </td>
                 <td
                   className={`px-4 py-2 text-right whitespace-nowrap font-medium ${
-                    tx.amountCents < 0 ? "text-slate-900" : "text-emerald-700"
+                    tx.amountCents < 0 ? "text-slate-900 dark:text-slate-100" : "text-emerald-700 dark:text-emerald-400"
                   }`}
                 >
                   {formatCents(tx.amountCents)}
@@ -120,7 +120,7 @@ export default async function TransactionsPage({
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Changing a category also applies it to future imports from the same
         merchant.
       </p>

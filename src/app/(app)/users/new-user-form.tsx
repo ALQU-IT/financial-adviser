@@ -28,22 +28,22 @@ export function NewUserForm() {
   return (
     <form onSubmit={onSubmit} className="mt-4 flex flex-wrap items-end gap-3">
       <label className="block">
-        <span className="text-sm font-medium text-slate-700">Username</span>
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Username</span>
         <input
           name="username"
           required
           minLength={3}
-          className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
         />
       </label>
       <label className="block">
-        <span className="text-sm font-medium text-slate-700">Password</span>
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Password</span>
         <input
           name="password"
           type="password"
           required
           minLength={8}
-          className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
         />
       </label>
       <button
@@ -54,11 +54,11 @@ export function NewUserForm() {
         {pending ? "Adding…" : "Add user"}
       </button>
       {error && (
-        <p className="w-full text-sm text-red-600" role="alert">
+        <p className="w-full text-sm text-red-600 dark:text-red-400" role="alert">
           {error}
         </p>
       )}
-      {ok && <p className="w-full text-sm text-emerald-700">User created.</p>}
+      {ok && <p className="w-full text-sm text-emerald-700 dark:text-emerald-400">User created.</p>}
     </form>
   );
 }
