@@ -1,0 +1,434 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import Papa from "papaparse";
+import { useRouter } from "next/navigation";
+import { parseAmountToCents, formatCents } from "@/lib/money";
+import {
+  DATE_FORMAT_LABELS,
+  guessDateFormat,
+  parseDateISO,
+  type DateFormat,
+} from "@/lib/dates";
+import { importTransactions, type ImportRow } from "./actions";
+
+type Mapping = {
+  dateCol: number;
+  merchantCol: number;
+  amountCol: number;
+  dateFormat: DateFormat;
+  expensesArePositive: boolean;
+};
+
+type SavedMapping = { name: string; mapping: Mapping };
+
+export function UploadWizard({
+  savedMappings,
+}: {
+  savedMappings: SavedMapping[];
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [filename, setFilename] = useState("");
+  const [grid, setGrid] = useState<string[][]>([]);
+  const [hasHeader, setHasHeader] = useState(true);
+  const [provider, setProvider] = useState("");
+  const [dateCol, setDateCol] = useState(0);
+  const [merchantCol, setMerchantCol] = useState(1);
+  const [amountCol, setAmountCol] = useState(2);
+  const [dateFormat, setDateFormat] = useState<DateFormat>("DMY");
+  const [expensesArePositive, setExpensesArePositive] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    imported: number;
+    categorized: number;
+    skipped: number;
+  } | null>(null);
+
+  const columnCount = grid[0]?.length ?? 0;
+  const dataRows = useMemo(
+    () => (hasHeader ? grid.slice(1) : grid),
+    [grid, hasHeader]
+  );
+  const headers = useMemo(() => {
+    if (hasHeader && grid[0]) return grid[0];
+    return Array.from({ length: columnCount }, (_, i) => `Column ${i + 1}`);
+  }, [grid, hasHeader, columnCount]);
+
+  function autoDetect(rows: string[][], header: string[] | null) {
+    const sample = rows.slice(0, 25);
+    const cols = rows[0]?.length ?? 0;
+    let bestDate = -1;
+    let bestDateHits = 0;
+    let bestAmount = -1;
+    let bestAmountHits = 0;
+    const fmt = (col: number) =>
+      guessDateFormat(sample.map((r) => r[col] ?? ""));
+    for (let c = 0; c < cols; c++) {
+      const dateHits = sample.filter(
+        (r) => parseDateISO(r[c] ?? "", fmt(c)) != null
+      ).length;
+      if (dateHits > bestDateHits) {
+        bestDateHits = dateHits;
+        bestDate = c;
+      }
+      const amountHits = sample.filter((r) => {
+        const cents = parseAmountToCents(r[c] ?? "");
+        return cents != null && parseDateISO(r[c] ?? "", "DMY") == null;
+      }).length;
+      const headerName = header?.[c]?.toLowerCase() ?? "";
+      const headerBoost = /betrag|amount|umsatz|value|summe/.test(headerName)
+        ? 5
+        : 0;
+      if (amountHits + headerBoost > bestAmountHits) {
+        bestAmountHits = amountHits + headerBoost;
+        bestAmount = c;
+      }
+    }
+    // Merchant: the column with the longest average text that isn't date/amount.
+    let bestMerchant = -1;
+    let bestLen = -1;
+    for (let c = 0; c < cols; c++) {
+      if (c === bestDate || c === bestAmount) continue;
+      const avg =
+        sample.reduce((acc, r) => acc + (r[c]?.length ?? 0), 0) /
+        (sample.length || 1);
+      if (avg > bestLen) {
+        bestLen = avg;
+        bestMerchant = c;
+      }
+    }
+    if (bestDate >= 0) {
+      setDateCol(bestDate);
+      setDateFormat(fmt(bestDate));
+    }
+    if (bestAmount >= 0) {
+      setAmountCol(bestAmount);
+      // Guess sign convention: mostly positive values → charges are positive.
+      const cents = sample
+        .map((r) => parseAmountToCents(r[bestAmount] ?? ""))
+        .filter((v): v is number => v != null && v !== 0);
+      const positives = cents.filter((v) => v > 0).length;
+      setExpensesArePositive(positives >= cents.length / 2);
+    }
+    if (bestMerchant >= 0) setMerchantCol(bestMerchant);
+  }
+
+  function onFile(file: File) {
+    setError(null);
+    setResult(null);
+    setFilename(file.name);
+    Papa.parse<string[]>(file, {
+      skipEmptyLines: "greedy",
+      complete: (res) => {
+        const rows = (res.data as string[][]).filter((r) => r.length > 1);
+        if (rows.length === 0) {
+          setError("Could not find any rows in this file.");
+          return;
+        }
+        // Header heuristic: no cell in row 0 parses as an amount or date.
+        const first = rows[0];
+        const headerLikely = first.every(
+          (cell) =>
+            parseDateISO(cell, "DMY") == null &&
+            (parseAmountToCents(cell) == null || /[a-z]/i.test(cell))
+        );
+        setHasHeader(headerLikely);
+        setGrid(rows);
+        autoDetect(headerLikely ? rows.slice(1) : rows, headerLikely ? first : null);
+      },
+      error: () => setError("Failed to parse this file as CSV."),
+    });
+  }
+
+  function applyPreset(preset: SavedMapping) {
+    setProvider(preset.name);
+    setDateCol(preset.mapping.dateCol);
+    setMerchantCol(preset.mapping.merchantCol);
+    setAmountCol(preset.mapping.amountCol);
+    setDateFormat(preset.mapping.dateFormat);
+    setExpensesArePositive(preset.mapping.expensesArePositive);
+  }
+
+  const normalized = useMemo(() => {
+    const rows: ImportRow[] = [];
+    let skipped = 0;
+    for (const r of dataRows) {
+      const date = parseDateISO(r[dateCol] ?? "", dateFormat);
+      const cents = parseAmountToCents(r[amountCol] ?? "");
+      const merchant = (r[merchantCol] ?? "").trim();
+      if (date == null || cents == null) {
+        skipped++;
+        continue;
+      }
+      rows.push({
+        date,
+        merchant: merchant || "(no description)",
+        amountCents: expensesArePositive ? -cents : cents,
+      });
+    }
+    return { rows, skipped };
+  }, [dataRows, dateCol, merchantCol, amountCol, dateFormat, expensesArePositive]);
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const res = await importTransactions({
+        provider,
+        filename,
+        rows: normalized.rows,
+        saveMapping: provider.trim()
+          ? { dateCol, merchantCol, amountCol, dateFormat, expensesArePositive }
+          : undefined,
+      });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setResult({
+        imported: res.imported,
+        categorized: res.categorized,
+        skipped: normalized.skipped,
+      });
+      setGrid([]);
+      setFilename("");
+      router.refresh();
+    });
+  }
+
+  const selectCls =
+    "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none";
+
+  return (
+    <div className="rounded-xl bg-white p-6 shadow-sm">
+      {result && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          Imported <strong>{result.imported}</strong> transactions,{" "}
+          <strong>{result.categorized}</strong> categorized automatically
+          {result.skipped > 0 && <> ({result.skipped} unreadable rows skipped)</>}
+          . View them on the <a href="/" className="underline">dashboard</a>.
+        </div>
+      )}
+
+      <label className="block">
+        <span className="text-sm font-medium text-slate-700">CSV file</span>
+        <input
+          type="file"
+          accept=".csv,text/csv,text/plain"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onFile(f);
+          }}
+          className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+        />
+      </label>
+
+      {grid.length > 0 && (
+        <div className="mt-6 space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Provider name
+              </span>
+              <input
+                value={provider}
+                onChange={(e) => setProvider(e.target.value)}
+                placeholder="e.g. Visa / DKB / Amex"
+                className={selectCls}
+                list="provider-presets"
+              />
+              <datalist id="provider-presets">
+                {savedMappings.map((m) => (
+                  <option key={m.name} value={m.name} />
+                ))}
+              </datalist>
+              <span className="mt-1 block text-xs text-slate-500">
+                Saves these column settings for next time.
+              </span>
+            </label>
+            {savedMappings.length > 0 && (
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">
+                  Apply saved preset
+                </span>
+                <select
+                  className={selectCls}
+                  defaultValue=""
+                  onChange={(e) => {
+                    const preset = savedMappings.find(
+                      (m) => m.name === e.target.value
+                    );
+                    if (preset) applyPreset(preset);
+                  }}
+                >
+                  <option value="">— choose —</option>
+                  {savedMappings.map((m) => (
+                    <option key={m.name} value={m.name}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="flex items-end gap-2 pb-2">
+              <input
+                type="checkbox"
+                checked={hasHeader}
+                onChange={(e) => setHasHeader(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm text-slate-700">
+                First row is a header
+              </span>
+            </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Date column
+              </span>
+              <select
+                className={selectCls}
+                value={dateCol}
+                onChange={(e) => setDateCol(Number(e.target.value))}
+              >
+                {headers.map((h, i) => (
+                  <option key={i} value={i}>
+                    {h || `Column ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Date format
+              </span>
+              <select
+                className={selectCls}
+                value={dateFormat}
+                onChange={(e) => setDateFormat(e.target.value as DateFormat)}
+              >
+                {Object.entries(DATE_FORMAT_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Description column
+              </span>
+              <select
+                className={selectCls}
+                value={merchantCol}
+                onChange={(e) => setMerchantCol(Number(e.target.value))}
+              >
+                {headers.map((h, i) => (
+                  <option key={i} value={i}>
+                    {h || `Column ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Amount column
+              </span>
+              <select
+                className={selectCls}
+                value={amountCol}
+                onChange={(e) => setAmountCol(Number(e.target.value))}
+              >
+                {headers.map((h, i) => (
+                  <option key={i} value={i}>
+                    {h || `Column ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="block max-w-md">
+            <span className="text-sm font-medium text-slate-700">
+              Sign convention
+            </span>
+            <select
+              className={selectCls}
+              value={expensesArePositive ? "pos" : "neg"}
+              onChange={(e) => setExpensesArePositive(e.target.value === "pos")}
+            >
+              <option value="pos">
+                Charges are positive numbers (typical credit card)
+              </option>
+              <option value="neg">
+                Charges are negative numbers (bank account style)
+              </option>
+            </select>
+          </label>
+
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700">
+              Preview ({normalized.rows.length} rows ready
+              {normalized.skipped > 0 && `, ${normalized.skipped} skipped`})
+            </h3>
+            <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">Description</th>
+                    <th className="px-3 py-2 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {normalized.rows.slice(0, 8).map((row, i) => (
+                    <tr key={i} className="border-b border-slate-100">
+                      <td className="px-3 py-2 whitespace-nowrap">{row.date}</td>
+                      <td className="px-3 py-2">{row.merchant}</td>
+                      <td
+                        className={`px-3 py-2 text-right whitespace-nowrap ${
+                          row.amountCents < 0
+                            ? "text-slate-900"
+                            : "text-emerald-700"
+                        }`}
+                      >
+                        {formatCents(row.amountCents)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Expenses should show as negative amounts. If they look positive,
+              switch the sign convention above.
+            </p>
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button
+            onClick={submit}
+            disabled={pending || normalized.rows.length === 0}
+            className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {pending
+              ? "Importing…"
+              : `Import ${normalized.rows.length} transactions`}
+          </button>
+        </div>
+      )}
+      {error && grid.length === 0 && (
+        <p className="mt-4 text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
