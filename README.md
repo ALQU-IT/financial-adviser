@@ -39,7 +39,9 @@ the admin account. Data is stored in `./data/finance.db` (override with the
 1. Build/publish the image (the included GitHub Action publishes
    `ghcr.io/<owner>/financial-adviser:latest` on every push to `main`), or
    build locally: `docker build -t financial-adviser .`
-2. In TrueNAS: **Apps → Discover Apps → Custom App**
+2. In TrueNAS: **Apps → Discover Apps → ⋮ → Install via YAML** and paste
+   [docker-compose.yaml](docker-compose.yaml) (adjust the host path and port),
+   or configure the same values manually via **Custom App**:
    - **Image:** `ghcr.io/<owner>/financial-adviser:latest`
    - **Port:** map container port `3000` to a free host port
    - **Storage:** mount a dataset (host path) at `/data` — this holds the

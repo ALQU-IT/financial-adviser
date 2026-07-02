@@ -1,0 +1,30 @@
+# Financial Adviser — Docker Compose
+#
+# TrueNAS SCALE: Apps → Discover Apps → ⋮ (three dots) → Install via YAML,
+# paste this file. Or run `docker compose up -d` on any Docker host.
+#
+# Adjust before deploying:
+#   1. The host path for /data — must be an existing dataset/directory.
+#   2. The host port (left side of "3001:3000") if 3001 is taken.
+
+services:
+  financial-adviser:
+    image: ghcr.io/alqu-it/financial-adviser:latest
+    container_name: financial-adviser
+    restart: unless-stopped
+    ports:
+      # host:container — open http://<nas-ip>:3001
+      - "3001:3000"
+    volumes:
+      # Holds the SQLite database — point this at a dataset you snapshot.
+      - /mnt/tank/apps/financial-adviser:/data
+    environment:
+      TZ: Europe/Berlin
+      # Uncomment when serving through an HTTPS reverse proxy:
+      # COOKIE_SECURE: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/login"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
