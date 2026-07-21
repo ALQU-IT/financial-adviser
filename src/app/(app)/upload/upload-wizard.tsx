@@ -94,16 +94,28 @@ export function UploadWizard({
         bestAmount = c;
       }
     }
-    // Merchant: the column with the longest average text that isn't date/amount.
+    // Merchant: prefer columns whose header sounds like a description, then
+    // long human-looking text. Penalize ID-like columns (mostly digits, no
+    // spaces) so e.g. "TransactionId" never wins over "MerchantName".
+    const descHeader =
+      /merchant|beschreibung|description|details|verwendungszweck|buchungstext|text|name|empf/;
     let bestMerchant = -1;
-    let bestLen = -1;
+    let bestScore = -Infinity;
     for (let c = 0; c < cols; c++) {
       if (c === bestDate || c === bestAmount) continue;
-      const avg =
-        sample.reduce((acc, r) => acc + (r[c]?.length ?? 0), 0) /
+      const values = sample.map((r) => r[c] ?? "");
+      const joined = values.join("");
+      if (!joined) continue;
+      const avg = joined.length / (sample.length || 1);
+      const digitRatio = joined.replace(/[^0-9]/g, "").length / joined.length;
+      const spacedShare =
+        values.filter((v) => v.trim().includes(" ")).length /
         (sample.length || 1);
-      if (avg > bestLen) {
-        bestLen = avg;
+      let score = avg * (0.3 + spacedShare) * (1 - digitRatio);
+      const headerName = header?.[c]?.toLowerCase() ?? "";
+      if (descHeader.test(headerName)) score += 1000;
+      if (score > bestScore) {
+        bestScore = score;
         bestMerchant = c;
       }
     }

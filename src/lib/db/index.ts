@@ -87,20 +87,21 @@ function bootstrap(sqlite: Database.Database) {
   const catIdByName = sqlite.prepare(
     "SELECT id FROM categories WHERE name = ?"
   );
-  const seedRuleCount = sqlite.prepare(
-    "SELECT COUNT(*) AS n FROM rules WHERE source = 'seed'"
+  const seedRuleExists = sqlite.prepare(
+    "SELECT 1 FROM rules WHERE source = 'seed' AND pattern = ? AND category_id = ?"
   );
   const insertRule = sqlite.prepare(
     "INSERT INTO rules (pattern, category_id, source) VALUES (?, ?, 'seed')"
   );
   const tx = sqlite.transaction(() => {
     for (const cat of SEED_CATEGORIES) insertCat.run(cat.name, cat.color);
-    const count = seedRuleCount.get() as { n: number };
-    if (count.n === 0) {
-      for (const [category, patterns] of Object.entries(SEED_RULES)) {
-        const row = catIdByName.get(category) as { id: number } | undefined;
-        if (!row) continue;
-        for (const pattern of patterns) insertRule.run(pattern, row.id);
+    // Per-pattern upsert so newly added seed rules also reach existing
+    // databases on the next boot.
+    for (const [category, patterns] of Object.entries(SEED_RULES)) {
+      const row = catIdByName.get(category) as { id: number } | undefined;
+      if (!row) continue;
+      for (const pattern of patterns) {
+        if (!seedRuleExists.get(pattern, row.id)) insertRule.run(pattern, row.id);
       }
     }
   });

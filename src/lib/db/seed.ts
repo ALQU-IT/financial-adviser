@@ -18,6 +18,12 @@ export const SEED_CATEGORIES: { name: string; color: string }[] = [
 // Tuned for German + international credit card statements.
 export const SEED_RULES: Record<string, string[]> = {
   Groceries: [
+    "COOP",
+    "MIGROS",
+    "DENNER",
+    "VOLG",
+    "SPAR DANKT",
+    "LANDI",
     "REWE",
     "EDEKA",
     "ALDI",
@@ -104,6 +110,13 @@ export const SEED_RULES: Record<string, string[]> = {
     "ABO",
   ],
   Transport: [
+    "SOCAR",
+    "MIGROL",
+    "AVIA ",
+    "TAMOIL",
+    "AGROLA",
+    "SBB",
+    "TESLA",
     "SHELL",
     "ARAL",
     "ESSO",
@@ -150,6 +163,7 @@ export const SEED_RULES: Record<string, string[]> = {
     "TUI",
   ],
   "Health & Fitness": [
+    "AMAVITA",
     "APOTHEKE",
     "PHARMACY",
     "MCFIT",
