@@ -68,6 +68,17 @@ export function currentMonthKey(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
+export function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Shift an ISO date (YYYY-MM-DD) by a number of days. */
+export function addDays(iso: string, delta: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Short month label for dense 12-bar charts, e.g. "Jan 26". */
 export function formatMonthShort(key: string): string {
   const [y, m] = key.split("-").map(Number);

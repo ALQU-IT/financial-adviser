@@ -4,31 +4,82 @@ import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { formatCents } from "@/lib/money";
 import {
+  addDays,
   addMonths,
   currentMonthKey,
   formatMonth,
   formatMonthShort,
+  todayISO,
 } from "@/lib/dates";
 import { CategoryBars, TrendBars } from "./charts";
+import { LookbackSlider } from "./lookback-slider";
 
 type Period = {
-  mode: "month" | "year" | "last12";
-  label: string; // "June 2026" / "2025" / "the last 12 months"
+  mode: "month" | "year" | "last12" | "lookback";
+  label: string; // "June 2026" / "2025" / "the last 45 days"
   start: string; // inclusive ISO date
   endEx: string; // exclusive ISO date
   prevStart: string;
   prevEndEx: string;
   prevLabel: string;
-  trendKeys: string[]; // month keys shown in the trend chart
+  granularity: "month" | "day"; // trend bucket size
+  trendKeys: string[]; // month keys or ISO dates shown in the trend chart
   month?: string; // set in month mode
+  lookbackUnit?: "d" | "m";
+  lookbackN?: number;
 };
 
 function resolvePeriod(
-  params: { m?: string; y?: string; p?: string },
+  params: { m?: string; y?: string; p?: string; back?: string },
   months: string[],
   years: string[]
 ): Period {
   const today = currentMonthKey();
+  const backMatch = /^(\d+)([dm])$/.exec(params.back ?? "");
+  if (backMatch) {
+    const unit = backMatch[2] as "d" | "m";
+    if (unit === "m") {
+      const n = Math.min(24, Math.max(1, Number(backMatch[1])));
+      const startKey = addMonths(today, -(n - 1));
+      return {
+        mode: "lookback",
+        label: `the last ${n} month${n === 1 ? "" : "s"}`,
+        start: `${startKey}-01`,
+        endEx: `${addMonths(today, 1)}-01`,
+        prevStart: `${addMonths(startKey, -n)}-01`,
+        prevEndEx: `${startKey}-01`,
+        prevLabel: `the ${n} month${n === 1 ? "" : "s"} before`,
+        granularity: "month",
+        trendKeys: Array.from({ length: n }, (_, i) => addMonths(startKey, i)),
+        lookbackUnit: "m",
+        lookbackN: n,
+      };
+    }
+    const n = Math.min(120, Math.max(7, Number(backMatch[1])));
+    const end = todayISO();
+    const start = addDays(end, -(n - 1));
+    const daily = n <= 62;
+    return {
+      mode: "lookback",
+      label: `the last ${n} days`,
+      start,
+      endEx: addDays(end, 1),
+      prevStart: addDays(start, -n),
+      prevEndEx: start,
+      prevLabel: `the ${n} days before`,
+      granularity: daily ? "day" : "month",
+      trendKeys: daily
+        ? Array.from({ length: n }, (_, i) => addDays(start, i))
+        : (() => {
+            const first = start.slice(0, 7);
+            const keys: string[] = [];
+            for (let k = first; k <= today; k = addMonths(k, 1)) keys.push(k);
+            return keys;
+          })(),
+      lookbackUnit: "d",
+      lookbackN: n,
+    };
+  }
   if (params.p === "last12") {
     const startKey = addMonths(today, -11);
     const trendKeys = Array.from({ length: 12 }, (_, i) =>
@@ -42,6 +93,7 @@ function resolvePeriod(
       prevStart: `${addMonths(today, -23)}-01`,
       prevEndEx: `${startKey}-01`,
       prevLabel: "the previous 12 months",
+      granularity: "month",
       trendKeys,
     };
   }
@@ -55,6 +107,7 @@ function resolvePeriod(
       prevStart: `${y - 1}-01-01`,
       prevEndEx: `${y}-01-01`,
       prevLabel: String(y - 1),
+      granularity: "month",
       trendKeys: Array.from(
         { length: 12 },
         (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`
@@ -71,6 +124,7 @@ function resolvePeriod(
     prevStart: `${addMonths(month, -1)}-01`,
     prevEndEx: `${month}-01`,
     prevLabel: formatMonth(addMonths(month, -1)),
+    granularity: "month",
     trendKeys: Array.from({ length: 6 }, (_, i) => addMonths(startKey, i)),
     month,
   };
@@ -79,7 +133,7 @@ function resolvePeriod(
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ m?: string; y?: string; p?: string }>;
+  searchParams: Promise<{ m?: string; y?: string; p?: string; back?: string }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
@@ -174,23 +228,41 @@ export default async function DashboardPage({
     .limit(period.mode === "month" ? 6 : 10)
     .all();
 
+  const bucketExpr =
+    period.granularity === "day"
+      ? sql<string>`${schema.transactions.date}`.as("bucket")
+      : sql<string>`substr(${schema.transactions.date}, 1, 7)`.as("bucket");
+  const trendStart =
+    period.granularity === "day"
+      ? period.trendKeys[0]
+      : `${period.trendKeys[0]}-01`;
   const trendRows = db
     .select({
-      month: sql<string>`substr(${schema.transactions.date}, 1, 7)`.as("month"),
+      bucket: bucketExpr,
       spend: sql<number>`COALESCE(SUM(CASE WHEN ${schema.transactions.amountCents} < 0 THEN -${schema.transactions.amountCents} ELSE 0 END), 0)`,
     })
     .from(schema.transactions)
-    .where(inRange(`${period.trendKeys[0]}-01`, period.endEx))
-    .groupBy(sql`month`)
+    .where(inRange(trendStart, period.endEx))
+    .groupBy(sql`bucket`)
     .all();
-  const spendByMonth = new Map(trendRows.map((r) => [r.month, r.spend]));
+  const spendByBucket = new Map(trendRows.map((r) => [r.bucket, r.spend]));
   const today = currentMonthKey();
+  const todayDate = todayISO();
   const trend = period.trendKeys.map((key) => ({
     month: key,
     label:
-      period.mode === "month" ? formatMonth(key) : formatMonthShort(key),
-    spend: (spendByMonth.get(key) ?? 0) / 100,
-    current: period.mode === "month" ? key === period.month : key === today,
+      period.granularity === "day"
+        ? `${key.slice(8, 10)}.${key.slice(5, 7)}.`
+        : period.mode === "month"
+          ? formatMonth(key)
+          : formatMonthShort(key),
+    spend: (spendByBucket.get(key) ?? 0) / 100,
+    current:
+      period.granularity === "day"
+        ? key === todayDate
+        : period.mode === "month"
+          ? key === period.month
+          : key === today,
   }));
 
   const uncategorized = db
@@ -210,14 +282,18 @@ export default async function DashboardPage({
       ? ((totals.spend - prevTotals.spend) / prevTotals.spend) * 100
       : null;
 
-  // Monthly average over months that have already begun within the period.
-  const elapsedMonths = period.trendKeys.filter(
-    (k) => k <= today && (spendByMonth.get(k) ?? 0) > 0
-  ).length;
-  const monthlyAvg =
-    period.mode !== "month" && elapsedMonths > 0
-      ? Math.round(totals.spend / elapsedMonths)
-      : null;
+  // Average per month (or per day for short day-lookbacks), over buckets
+  // that have already begun within the period.
+  let avg: { cents: number; unit: string } | null = null;
+  if (period.lookbackUnit === "d" && period.lookbackN) {
+    avg = { cents: Math.round(totals.spend / period.lookbackN), unit: "day" };
+  } else if (period.mode !== "month") {
+    const elapsed = period.trendKeys.filter(
+      (k) => k <= today && (spendByBucket.get(k) ?? 0) > 0
+    ).length;
+    if (elapsed > 0)
+      avg = { cents: Math.round(totals.spend / elapsed), unit: "month" };
+  }
 
   const currency = process.env.CURRENCY || "EUR";
 
@@ -246,15 +322,22 @@ export default async function DashboardPage({
           )}
         </nav>
       </div>
-      <nav className="flex flex-wrap gap-2">
-        {months.slice(0, 12).map((m) =>
-          pill(
-            `/?m=${m}`,
-            period.mode === "month" && period.month === m,
-            formatMonth(m)
-          )
-        )}
-      </nav>
+      <div className="flex flex-wrap items-center gap-2">
+        <nav className="flex flex-wrap gap-2">
+          {months.slice(0, 12).map((m) =>
+            pill(
+              `/?m=${m}`,
+              period.mode === "month" && period.month === m,
+              formatMonth(m)
+            )
+          )}
+        </nav>
+      </div>
+      <LookbackSlider
+        active={period.mode === "lookback"}
+        unit={period.lookbackUnit ?? "m"}
+        value={period.lookbackN ?? 6}
+      />
 
       {/* Stat tiles */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -278,9 +361,9 @@ export default async function DashboardPage({
                 {period.prevLabel}
               </span>
             )}
-            {monthlyAvg != null && (
+            {avg != null && (
               <span className="text-slate-500 dark:text-slate-400">
-                {delta != null && " · "}Ø {formatCents(monthlyAvg)}/month
+                {delta != null && " · "}Ø {formatCents(avg.cents)}/{avg.unit}
               </span>
             )}
           </p>
@@ -334,12 +417,8 @@ export default async function DashboardPage({
 
         <section className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Monthly spend
-            {period.mode === "month"
-              ? " (last 6 months)"
-              : period.mode === "year"
-                ? ` (${period.label})`
-                : " (last 12 months)"}
+            {period.granularity === "day" ? "Daily spend" : "Monthly spend"}
+            {period.mode === "month" ? " (last 6 months)" : ` (${period.label})`}
           </h2>
           <TrendBars currency={currency} data={trend} />
         </section>

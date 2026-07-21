@@ -129,7 +129,7 @@ export function TrendBars({
             cursor={{ fill: "color-mix(in srgb, var(--chart-muted) 12%, transparent)" }}
             content={<ChartTooltip fmt={fmt} />}
           />
-          <Bar dataKey="spend" barSize={28} radius={[4, 4, 0, 0]}>
+          <Bar dataKey="spend" maxBarSize={28} radius={[4, 4, 0, 0]}>
             {data.map((d) => (
               <Cell key={d.month} fill={d.current ? BAR_EMPHASIS : BAR} />
             ))}

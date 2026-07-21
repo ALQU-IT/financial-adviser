@@ -65,6 +65,7 @@ export const SEED_RULES: Record<string, string[]> = {
     "DOENER",
   ],
   Shopping: [
+    "ALIEXPRESS",
     "AMAZON",
     "AMZN",
     "ZALANDO",
