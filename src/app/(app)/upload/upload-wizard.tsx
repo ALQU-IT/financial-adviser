@@ -3,7 +3,12 @@
 import { useMemo, useState, useTransition } from "react";
 import Papa from "papaparse";
 import { useRouter } from "next/navigation";
-import { parseAmountToCents, formatCents } from "@/lib/money";
+import {
+  detectDecimalSeparator,
+  formatCents,
+  parseAmountToCents,
+  type DecimalSep,
+} from "@/lib/money";
 import {
   DATE_FORMAT_LABELS,
   guessDateFormat,
@@ -18,14 +23,17 @@ type Mapping = {
   amountCol: number;
   dateFormat: DateFormat;
   expensesArePositive: boolean;
+  decimalSep?: DecimalSep;
 };
 
 type SavedMapping = { name: string; mapping: Mapping };
 
 export function UploadWizard({
   savedMappings,
+  currency,
 }: {
   savedMappings: SavedMapping[];
+  currency: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -38,6 +46,7 @@ export function UploadWizard({
   const [amountCol, setAmountCol] = useState(2);
   const [dateFormat, setDateFormat] = useState<DateFormat>("DMY");
   const [expensesArePositive, setExpensesArePositive] = useState(true);
+  const [numFormat, setNumFormat] = useState<"auto" | DecimalSep>("auto");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
     imported: number;
@@ -117,6 +126,7 @@ export function UploadWizard({
   function onFile(file: File) {
     setError(null);
     setResult(null);
+    setNumFormat("auto");
     setFilename(file.name);
     Papa.parse<string[]>(file, {
       skipEmptyLines: "greedy",
@@ -148,14 +158,24 @@ export function UploadWizard({
     setAmountCol(preset.mapping.amountCol);
     setDateFormat(preset.mapping.dateFormat);
     setExpensesArePositive(preset.mapping.expensesArePositive);
+    setNumFormat(preset.mapping.decimalSep ?? "auto");
   }
+
+  const detectedSep = useMemo(
+    () =>
+      detectDecimalSeparator(
+        dataRows.slice(0, 50).map((r) => r[amountCol] ?? "")
+      ),
+    [dataRows, amountCol]
+  );
+  const decimalSep: DecimalSep = numFormat === "auto" ? detectedSep : numFormat;
 
   const normalized = useMemo(() => {
     const rows: ImportRow[] = [];
     let skipped = 0;
     for (const r of dataRows) {
       const date = parseDateISO(r[dateCol] ?? "", dateFormat);
-      const cents = parseAmountToCents(r[amountCol] ?? "");
+      const cents = parseAmountToCents(r[amountCol] ?? "", decimalSep);
       const merchant = (r[merchantCol] ?? "").trim();
       if (date == null || cents == null) {
         skipped++;
@@ -168,7 +188,7 @@ export function UploadWizard({
       });
     }
     return { rows, skipped };
-  }, [dataRows, dateCol, merchantCol, amountCol, dateFormat, expensesArePositive]);
+  }, [dataRows, dateCol, merchantCol, amountCol, dateFormat, expensesArePositive, decimalSep]);
 
   function submit() {
     setError(null);
@@ -178,7 +198,7 @@ export function UploadWizard({
         filename,
         rows: normalized.rows,
         saveMapping: provider.trim()
-          ? { dateCol, merchantCol, amountCol, dateFormat, expensesArePositive }
+          ? { dateCol, merchantCol, amountCol, dateFormat, expensesArePositive, decimalSep }
           : undefined,
       });
       if (!res.ok) {
@@ -350,7 +370,26 @@ export function UploadWizard({
             </label>
           </div>
 
-          <label className="block max-w-md">
+          <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Number format
+            </span>
+            <select
+              className={selectCls}
+              value={numFormat}
+              onChange={(e) =>
+                setNumFormat(e.target.value as "auto" | DecimalSep)
+              }
+            >
+              <option value="auto">
+                Auto — detected: {detectedSep === "," ? "1.234,56" : "1'234.56 / 10.000"}
+              </option>
+              <option value=",">Comma decimal — 1.234,56 (German)</option>
+              <option value=".">Dot decimal — 1&apos;234.56 / 10.000 (Swiss/English)</option>
+            </select>
+          </label>
+          <label className="block">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Sign convention
             </span>
@@ -367,6 +406,7 @@ export function UploadWizard({
               </option>
             </select>
           </label>
+          </div>
 
           <div>
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -394,7 +434,7 @@ export function UploadWizard({
                             : "text-emerald-700 dark:text-emerald-400"
                         }`}
                       >
-                        {formatCents(row.amountCents)}
+                        {formatCents(row.amountCents, currency)}
                       </td>
                     </tr>
                   ))}

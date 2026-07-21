@@ -26,6 +26,8 @@ services:
       - /mnt/tank/apps/financial-adviser:/data
     environment:
       TZ: Europe/Berlin
+      # Display currency for amounts (ISO 4217 code, e.g. CHF, EUR, USD).
+      CURRENCY: CHF
       # All access is HTTPS now, so the session cookie can be Secure.
       COOKIE_SECURE: "true"
     healthcheck:

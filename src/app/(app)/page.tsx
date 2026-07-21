@@ -207,6 +207,7 @@ export default async function DashboardPage({
             Spending by category
           </h2>
           <CategoryBars
+            currency={process.env.CURRENCY || "EUR"}
             data={byCategory.map((c) => ({
               name: c.name,
               color: c.color,
@@ -220,6 +221,7 @@ export default async function DashboardPage({
             Monthly spend (last {trend.length} months)
           </h2>
           <TrendBars
+            currency={process.env.CURRENCY || "EUR"}
             data={trend.map((t) => ({
               month: t.month,
               label: formatMonth(t.month),

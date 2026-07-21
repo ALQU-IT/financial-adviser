@@ -22,6 +22,7 @@ export type ImportPayload = {
     amountCol: number;
     dateFormat: string;
     expensesArePositive: boolean;
+    decimalSep?: string;
   };
 };
 

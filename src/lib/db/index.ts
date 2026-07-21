@@ -15,6 +15,10 @@ declare global {
 function createDb() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const sqlite = new Database(path.join(DATA_DIR, "finance.db"));
+  // busy_timeout first: it must be active before the WAL conversion below,
+  // which takes an exclusive lock and would otherwise fail with SQLITE_BUSY
+  // when two processes (e.g. parallel build workers) bootstrap concurrently.
+  sqlite.pragma("busy_timeout = 5000");
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   bootstrap(sqlite);

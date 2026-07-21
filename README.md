@@ -74,7 +74,7 @@ Environment variables:
 |---|---|---|
 | `DATA_DIR` | `/data` (Docker) / `./data` (dev) | Where the SQLite db is stored |
 | `COOKIE_SECURE` | unset | Set to `true` when serving via HTTPS |
-| `NEXT_PUBLIC_CURRENCY` | `EUR` | Display currency |
+| `CURRENCY` | `EUR` | Display currency (ISO 4217 code, e.g. `CHF`) |
 
 > **Note:** keep the app LAN-only and use your VPN (WireGuard/Tailscale) for
 > remote access. Don't port-forward it to the internet without an extra auth

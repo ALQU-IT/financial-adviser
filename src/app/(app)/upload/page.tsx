@@ -41,6 +41,7 @@ export default async function UploadPage() {
         </p>
       </div>
       <UploadWizard
+        currency={process.env.CURRENCY || "EUR"}
         savedMappings={mappings.map((m) => ({
           name: m.name,
           mapping: JSON.parse(m.mapping),
