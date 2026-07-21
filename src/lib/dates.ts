@@ -58,6 +58,26 @@ export function monthKey(isoDate: string): string {
   return isoDate.slice(0, 7);
 }
 
+/** Shift a YYYY-MM month key by a number of months. */
+export function addMonths(key: string, delta: number): string {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
+}
+
+export function currentMonthKey(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
+/** Short month label for dense 12-bar charts, e.g. "Jan 26". */
+export function formatMonthShort(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-GB", {
+    month: "short",
+    year: "2-digit",
+    timeZone: "UTC",
+  });
+}
+
 export function formatMonth(key: string): string {
   const [y, m] = key.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-GB", {
