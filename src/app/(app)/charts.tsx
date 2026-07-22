@@ -57,7 +57,7 @@ export function CategoryBars({
 }) {
   const fmt = makeFormatter(currency);
   if (data.length === 0) {
-    return <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No expenses this month.</p>;
+    return <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No expenses in this period.</p>;
   }
   const height = Math.max(160, data.length * 36 + 20);
   return (

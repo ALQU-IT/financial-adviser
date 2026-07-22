@@ -12,7 +12,7 @@ import {
   todayISO,
 } from "@/lib/dates";
 import { CategoryBars, TrendBars } from "./charts";
-import { LookbackSlider } from "./lookback-slider";
+import { PeriodPicker } from "./period-picker";
 
 type Period = {
   mode: "month" | "year" | "last12" | "lookback";
@@ -297,47 +297,31 @@ export default async function DashboardPage({
 
   const currency = process.env.CURRENCY || "EUR";
 
-  const pill = (href: string, active: boolean, label: string) => (
-    <Link
-      key={href}
-      href={href}
-      className={`rounded-full px-3 py-1 text-sm ${
-        active
-          ? "bg-indigo-600 text-white"
-          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Dashboard</h1>
-        <nav className="flex flex-wrap justify-end gap-2">
-          {pill("/?p=last12", period.mode === "last12", "Last 12 months")}
-          {years.map((y) =>
-            pill(`/?y=${y}`, period.mode === "year" && period.label === y, y)
-          )}
-        </nav>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold">Dashboard</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            Showing {period.label}
+          </p>
+        </div>
+        <PeriodPicker
+          months={months.slice(0, 36).map((m) => ({
+            key: m,
+            label: formatMonth(m),
+          }))}
+          years={years}
+          mode={period.mode}
+          month={period.month}
+          year={period.mode === "year" ? period.label : undefined}
+          back={
+            period.lookbackN != null
+              ? `${period.lookbackN}${period.lookbackUnit}`
+              : undefined
+          }
+        />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <nav className="flex flex-wrap gap-2">
-          {months.slice(0, 12).map((m) =>
-            pill(
-              `/?m=${m}`,
-              period.mode === "month" && period.month === m,
-              formatMonth(m)
-            )
-          )}
-        </nav>
-      </div>
-      <LookbackSlider
-        active={period.mode === "lookback"}
-        unit={period.lookbackUnit ?? "m"}
-        value={period.lookbackN ?? 6}
-      />
 
       {/* Stat tiles */}
       <div className="grid gap-4 sm:grid-cols-3">
