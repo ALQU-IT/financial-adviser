@@ -12,10 +12,12 @@ export function LookbackSlider({
   active,
   unit: initialUnit,
   value: initialValue,
+  basePath = "/",
 }: {
   active: boolean;
   unit: "d" | "m";
   value: number;
+  basePath?: string;
 }) {
   const router = useRouter();
   const [unit, setUnit] = useState<"d" | "m">(initialUnit);
@@ -23,7 +25,7 @@ export function LookbackSlider({
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   function apply(u: "d" | "m", v: number) {
-    router.replace(`/?back=${v}${u}`, { scroll: false });
+    router.replace(`${basePath}?back=${v}${u}`, { scroll: false });
   }
 
   function onSlide(v: number) {

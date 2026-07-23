@@ -1,15 +1,19 @@
 import Link from "next/link";
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { formatCents } from "@/lib/money";
 import { formatMonth } from "@/lib/dates";
+import { resolvePeriod } from "@/lib/period";
+import { PeriodPicker } from "../period-picker";
 import { CategorySelect } from "./category-select";
+
+const MAX_ROWS = 500;
 
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ m?: string }>;
+  searchParams: Promise<{ m?: string; y?: string; p?: string; back?: string }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
@@ -25,28 +29,6 @@ export default async function TransactionsPage({
     .all()
     .map((r) => r.month);
 
-  const month = params.m && months.includes(params.m) ? params.m : months[0];
-
-  const categories = db
-    .select()
-    .from(schema.categories)
-    .orderBy(schema.categories.name)
-    .all();
-
-  const txs = month
-    ? db
-        .select()
-        .from(schema.transactions)
-        .where(
-          and(
-            eq(schema.transactions.userId, user.id),
-            like(schema.transactions.date, `${month}%`)
-          )
-        )
-        .orderBy(desc(schema.transactions.date), desc(schema.transactions.id))
-        .all()
-    : [];
-
   if (months.length === 0) {
     return (
       <div className="rounded-xl bg-white dark:bg-slate-900 p-8 text-center shadow-sm">
@@ -61,25 +43,64 @@ export default async function TransactionsPage({
     );
   }
 
+  const years = [...new Set(months.map((m) => m.slice(0, 4)))];
+  const period = resolvePeriod(params, months, years);
+
+  const categories = db
+    .select()
+    .from(schema.categories)
+    .orderBy(schema.categories.name)
+    .all();
+
+  const rangeWhere = and(
+    eq(schema.transactions.userId, user.id),
+    gte(schema.transactions.date, period.start),
+    lt(schema.transactions.date, period.endEx)
+  );
+
+  const summary = db
+    .select({
+      count: sql<number>`COUNT(*)`,
+      spend: sql<number>`COALESCE(SUM(CASE WHEN ${schema.transactions.amountCents} < 0 THEN -${schema.transactions.amountCents} ELSE 0 END), 0)`,
+    })
+    .from(schema.transactions)
+    .where(rangeWhere)
+    .all()[0];
+
+  const txs = db
+    .select()
+    .from(schema.transactions)
+    .where(rangeWhere)
+    .orderBy(desc(schema.transactions.date), desc(schema.transactions.id))
+    .limit(MAX_ROWS)
+    .all();
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Transactions</h1>
-        <nav className="flex flex-wrap gap-2">
-          {months.slice(0, 12).map((m) => (
-            <Link
-              key={m}
-              href={`/transactions?m=${m}`}
-              className={`rounded-full px-3 py-1 text-sm ${
-                m === month
-                  ? "bg-indigo-600 text-white"
-                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-              }`}
-            >
-              {formatMonth(m)}
-            </Link>
-          ))}
-        </nav>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold">Transactions</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            Showing {period.label} — {summary.count} transactions,{" "}
+            {formatCents(summary.spend)} spent
+          </p>
+        </div>
+        <PeriodPicker
+          basePath="/transactions"
+          months={months.slice(0, 36).map((m) => ({
+            key: m,
+            label: formatMonth(m),
+          }))}
+          years={years}
+          mode={period.mode}
+          month={period.month}
+          year={period.mode === "year" ? period.label : undefined}
+          back={
+            period.lookbackN != null
+              ? `${period.lookbackN}${period.lookbackUnit}`
+              : undefined
+          }
+        />
       </div>
 
       <div className="overflow-x-auto rounded-xl bg-white dark:bg-slate-900 shadow-sm">
@@ -120,6 +141,12 @@ export default async function TransactionsPage({
           </tbody>
         </table>
       </div>
+      {summary.count > MAX_ROWS && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Showing the {MAX_ROWS} most recent of {summary.count} transactions —
+          narrow the period to see the rest.
+        </p>
+      )}
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Changing a category also applies it to future imports from the same
         merchant.

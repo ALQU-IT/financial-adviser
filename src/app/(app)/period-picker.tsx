@@ -22,6 +22,7 @@ export function PeriodPicker({
   month,
   year,
   back,
+  basePath = "/",
 }: {
   months: { key: string; label: string }[];
   years: string[];
@@ -29,6 +30,7 @@ export function PeriodPicker({
   month?: string;
   year?: string;
   back?: string; // e.g. "45d" when a lookback is active
+  basePath?: string;
 }) {
   const router = useRouter();
 
@@ -57,7 +59,7 @@ export function PeriodPicker({
           onChange={(e) => {
             if (e.target.value) {
               setShowSlider(false);
-              router.push(`/?m=${e.target.value}`, { scroll: false });
+              router.push(`${basePath}?m=${e.target.value}`, { scroll: false });
             }
           }}
         >
@@ -76,7 +78,7 @@ export function PeriodPicker({
           onChange={(e) => {
             if (e.target.value) {
               setShowSlider(false);
-              router.push(`/?y=${e.target.value}`, { scroll: false });
+              router.push(`${basePath}?y=${e.target.value}`, { scroll: false });
             }
           }}
         >
@@ -98,7 +100,7 @@ export function PeriodPicker({
               setShowSlider(true);
             } else if (v) {
               setShowSlider(false);
-              router.push(`/?back=${v}`, { scroll: false });
+              router.push(`${basePath}?back=${v}`, { scroll: false });
             }
           }}
         >
@@ -116,6 +118,7 @@ export function PeriodPicker({
           active={mode === "lookback"}
           unit={sliderUnit}
           value={sliderValue}
+          basePath={basePath}
         />
       )}
     </div>
