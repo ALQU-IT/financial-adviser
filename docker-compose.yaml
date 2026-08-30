@@ -10,9 +10,9 @@
 #   http://<nas-ip>:3001   — redirects to https://<nas-ip>:3443.
 #
 # Adjust before deploying:
-#   1. The host path for /data — must be an existing dataset/directory,
-#      owned by the container user (TrueNAS "apps" user):
-#        chown -R 568:568 /mnt/tank/apps/financial-adviser
+#   1. The host path for /data — the container takes ownership of it on
+#      start (as UID 568, the TrueNAS "apps" user), so no manual chown is
+#      needed; set PUID/PGID below to run as a different user.
 #   2. Host ports 3443/3001 if they are taken.
 
 services:

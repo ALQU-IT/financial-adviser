@@ -39,10 +39,12 @@ the admin account. Data is stored in `./data/finance.db` (override with the
 1. Build/publish the image (the included GitHub Action publishes
    `ghcr.io/<owner>/financial-adviser:latest` on every push to `main`), or
    build locally: `docker build -t financial-adviser .`
-   The container runs as UID/GID **568:568** (the TrueNAS `apps` user) — give
-   it the data dataset once: `chown -R 568:568 /mnt/<pool>/<dataset>`
-   (otherwise the app fails with `SQLITE_CANTOPEN: unable to open database
-   file`).
+   The app runs as UID/GID **568:568** (the TrueNAS `apps` user). The
+   container fixes the data directory's ownership itself on start, so a
+   dataset created by TrueNAS or Docker works as is; set `PUID`/`PGID` if you
+   need a different user. Only a read-only mount (or NFS with `root_squash`)
+   still needs a manual `chown -R 568:568 /mnt/<pool>/<dataset>` — the
+   container log says so explicitly if that happens.
 2. In TrueNAS: **Apps → Discover Apps → ⋮ → Install via YAML** and paste
    [docker-compose.yaml](docker-compose.yaml) (adjust the host path and port),
    or configure the same values manually via **Custom App**:
@@ -75,6 +77,7 @@ Environment variables:
 | `DATA_DIR` | `/data` (Docker) / `./data` (dev) | Where the SQLite db is stored |
 | `COOKIE_SECURE` | unset | Set to `true` when serving via HTTPS |
 | `CURRENCY` | `EUR` | Display currency (ISO 4217 code, e.g. `CHF`) |
+| `PUID` / `PGID` | `568` | User the server runs as; the data directory is chowned to it |
 
 > **Note:** keep the app LAN-only and use your VPN (WireGuard/Tailscale) for
 > remote access. Don't port-forward it to the internet without an extra auth

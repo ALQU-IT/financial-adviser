@@ -19,15 +19,21 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 
 # UID/GID 568 = the TrueNAS SCALE "apps" user, so a host dataset owned by
-# 568:568 is writable without extra ACL work.
-RUN addgroup -g 568 -S app && adduser -u 568 -S app -G app \
+# 568:568 is writable without extra ACL work. su-exec lets the entrypoint
+# repair the mount as root and then drop to that user.
+RUN apk add --no-cache su-exec \
+    && addgroup -g 568 -S app && adduser -u 568 -S app -G app \
     && mkdir -p /data && chown app:app /data
 
 COPY --from=builder --chown=app:app /app/.next/standalone ./
 COPY --from=builder --chown=app:app /app/.next/static ./.next/static
 COPY --from=builder --chown=app:app /app/public ./public
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-USER app
+# Starts as root only long enough to make /data writable, then runs the
+# server as 568:568 (override with PUID/PGID).
 VOLUME ["/data"]
 EXPOSE 3000
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

@@ -12,9 +12,38 @@ declare global {
   var __faDb: ReturnType<typeof createDb> | undefined;
 }
 
+/**
+ * Opens the database, turning the driver's opaque SQLITE_CANTOPEN into a
+ * message that names the real problem: the mounted data directory is not
+ * writable by the user the server runs as.
+ */
+function openDatabase(file: string): Database.Database {
+  try {
+    return new Database(file);
+  } catch (err) {
+    if ((err as { code?: string }).code !== "SQLITE_CANTOPEN") throw err;
+    let owner = "";
+    try {
+      const st = fs.statSync(DATA_DIR);
+      owner = ` (owned by ${st.uid}:${st.gid}, mode ${(st.mode & 0o777)
+        .toString(8)
+        .padStart(3, "0")})`;
+    } catch {
+      owner = " (missing)";
+    }
+    const me = `${process.getuid?.() ?? "?"}:${process.getgid?.() ?? "?"}`;
+    throw new Error(
+      `Cannot open the database at ${file}: ${DATA_DIR}${owner} is not writable by uid ${me}. ` +
+        `Fix the host directory mounted there, e.g. "chown -R 568:568 <host dir>", ` +
+        `or set PUID/PGID to a user that owns it.`,
+      { cause: err }
+    );
+  }
+}
+
 function createDb() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  const sqlite = new Database(path.join(DATA_DIR, "finance.db"));
+  const sqlite = openDatabase(path.join(DATA_DIR, "finance.db"));
   // busy_timeout first: it must be active before the WAL conversion below,
   // which takes an exclusive lock and would otherwise fail with SQLITE_BUSY
   // when two processes (e.g. parallel build workers) bootstrap concurrently.
