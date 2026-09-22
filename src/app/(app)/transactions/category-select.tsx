@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { setCategory } from "./actions";
 
 export function CategorySelect({
@@ -13,11 +13,21 @@ export function CategorySelect({
   categories: { id: number; name: string }[];
 }) {
   const [pending, startTransition] = useTransition();
+  // Controlled, because setting one row's category also recategorizes every
+  // other uncategorized row of the same merchant. An uncontrolled select
+  // (defaultValue) is only synced by React on mount, so those rows kept
+  // displaying "Uncategorized" after the server had already updated them.
+  const [selected, setSelected] = useState(value == null ? "" : String(value));
+  useEffect(() => {
+    setSelected(value == null ? "" : String(value));
+  }, [value]);
+
   return (
     <select
-      defaultValue={value ?? ""}
+      value={selected}
       disabled={pending}
       onChange={(e) => {
+        setSelected(e.target.value);
         const v = e.target.value === "" ? null : Number(e.target.value);
         startTransition(async () => {
           await setCategory(txId, v);

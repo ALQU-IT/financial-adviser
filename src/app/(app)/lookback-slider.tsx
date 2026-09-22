@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const LIMITS = {
@@ -23,6 +23,10 @@ export function LookbackSlider({
   const [unit, setUnit] = useState<"d" | "m">(initialUnit);
   const [value, setValue] = useState(initialValue);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Drop a pending debounce on unmount — otherwise hiding the slider (or
+  // leaving the page) still fires the navigation a moment later.
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   function apply(u: "d" | "m", v: number) {
     router.replace(`${basePath}?back=${v}${u}`, { scroll: false });

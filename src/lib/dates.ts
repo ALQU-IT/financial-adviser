@@ -58,6 +58,22 @@ export function monthKey(isoDate: string): string {
   return isoDate.slice(0, 7);
 }
 
+// "Today" must be the date on the wall clock, not in UTC: with TZ=Europe/Berlin
+// a toISOString() date is a day behind between midnight and 01:00 or 02:00,
+// which silently shifts the default month and every day-lookback window.
+const LOCAL_DATE = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function localYMD(d: Date): { y: string; m: string; d: string } {
+  const parts = LOCAL_DATE.formatToParts(d);
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? "01";
+  return { y: get("year"), m: get("month"), d: get("day") };
+}
+
 /** Shift a YYYY-MM month key by a number of months. */
 export function addMonths(key: string, delta: number): string {
   const [y, m] = key.split("-").map(Number);
@@ -65,11 +81,13 @@ export function addMonths(key: string, delta: number): string {
 }
 
 export function currentMonthKey(): string {
-  return new Date().toISOString().slice(0, 7);
+  const { y, m } = localYMD(new Date());
+  return `${y}-${m}`;
 }
 
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  const { y, m, d } = localYMD(new Date());
+  return `${y}-${m}-${d}`;
 }
 
 /** Shift an ISO date (YYYY-MM-DD) by a number of days. */

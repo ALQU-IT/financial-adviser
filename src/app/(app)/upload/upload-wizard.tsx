@@ -52,6 +52,7 @@ export function UploadWizard({
     imported: number;
     categorized: number;
     skipped: number;
+    duplicates: number;
   } | null>(null);
 
   const columnCount = grid[0]?.length ?? 0;
@@ -135,12 +136,33 @@ export function UploadWizard({
     if (bestMerchant >= 0) setMerchantCol(bestMerchant);
   }
 
-  function onFile(file: File) {
+  /**
+   * Read the file as text. German and Swiss banks still export Windows-1252,
+   * where decoding as UTF-8 turns "Waschanlage Rümlang" into replacement
+   * characters — so try UTF-8 strictly first and fall back on failure.
+   */
+  async function readAsText(file: File): Promise<string> {
+    const buf = await file.arrayBuffer();
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(buf);
+    } catch {
+      return new TextDecoder("windows-1252").decode(buf);
+    }
+  }
+
+  async function onFile(file: File) {
     setError(null);
     setResult(null);
     setNumFormat("auto");
     setFilename(file.name);
-    Papa.parse<string[]>(file, {
+    let text: string;
+    try {
+      text = await readAsText(file);
+    } catch {
+      setError("Could not read this file.");
+      return;
+    }
+    Papa.parse<string[]>(text, {
       skipEmptyLines: "greedy",
       complete: (res) => {
         const rows = (res.data as string[][]).filter((r) => r.length > 1);
@@ -221,6 +243,7 @@ export function UploadWizard({
         imported: res.imported,
         categorized: res.categorized,
         skipped: normalized.skipped,
+        duplicates: res.duplicates,
       });
       setGrid([]);
       setFilename("");
@@ -242,6 +265,15 @@ export function UploadWizard({
         </div>
       )}
 
+      {result && result.duplicates > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <strong>{result.duplicates}</strong> of them match transactions you
+          had already imported (same date, description and amount), so your
+          totals may now count them twice. If this file overlaps an earlier
+          statement, delete one of the two below.
+        </div>
+      )}
+
       <label className="block">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">CSV file</span>
         <input
@@ -249,7 +281,7 @@ export function UploadWizard({
           accept=".csv,text/csv,text/plain"
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) onFile(f);
+            if (f) void onFile(f);
           }}
           className="mt-1 block w-full text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-950 dark:file:text-indigo-300 dark:hover:file:bg-indigo-900"
         />

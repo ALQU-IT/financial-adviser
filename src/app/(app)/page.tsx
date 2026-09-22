@@ -115,17 +115,13 @@ export default async function DashboardPage({
     period.granularity === "day"
       ? sql<string>`${schema.transactions.date}`.as("bucket")
       : sql<string>`substr(${schema.transactions.date}, 1, 7)`.as("bucket");
-  const trendStart =
-    period.granularity === "day"
-      ? period.trendKeys[0]
-      : `${period.trendKeys[0]}-01`;
   const trendRows = db
     .select({
       bucket: bucketExpr,
       spend: sql<number>`COALESCE(SUM(CASE WHEN ${schema.transactions.amountCents} < 0 THEN -${schema.transactions.amountCents} ELSE 0 END), 0)`,
     })
     .from(schema.transactions)
-    .where(inRange(trendStart, period.endEx))
+    .where(inRange(period.trendStart, period.endEx))
     .groupBy(sql`bucket`)
     .all();
   const spendByBucket = new Map(trendRows.map((r) => [r.bucket, r.spend]));
@@ -165,18 +161,30 @@ export default async function DashboardPage({
       ? ((totals.spend - prevTotals.spend) / prevTotals.spend) * 100
       : null;
 
-  // Average per month (or per day for short day-lookbacks), over buckets
-  // that have already begun within the period.
+  // Average per month (or per day for short day-lookbacks). Counted from the
+  // first month that has data through the current one, so months before the
+  // user's first import don't drag the average down, while a month that
+  // genuinely had no spending still counts (skipping it would overstate it).
   let avg: { cents: number; unit: string } | null = null;
   if (period.lookbackUnit === "d" && period.lookbackN) {
     avg = { cents: Math.round(totals.spend / period.lookbackN), unit: "day" };
   } else if (period.mode !== "month") {
-    const elapsed = period.trendKeys.filter(
-      (k) => k <= today && (spendByBucket.get(k) ?? 0) > 0
-    ).length;
+    const begun = period.trendKeys.filter((k) => k <= today);
+    const firstWithData = begun.findIndex((k) => (spendByBucket.get(k) ?? 0) > 0);
+    const elapsed = firstWithData === -1 ? 0 : begun.length - firstWithData;
     if (elapsed > 0)
       avg = { cents: Math.round(totals.spend / elapsed), unit: "month" };
   }
+
+  // Keep the selected period when jumping to the transactions list.
+  const periodQuery =
+    period.mode === "month"
+      ? `?m=${period.month}`
+      : period.mode === "year"
+        ? `?y=${period.label}`
+        : period.mode === "last12"
+          ? "?p=last12"
+          : `?back=${period.lookbackN}${period.lookbackUnit}`;
 
   const currency = process.env.CURRENCY || "EUR";
 
@@ -254,11 +262,7 @@ export default async function DashboardPage({
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             uncategorized —{" "}
             <Link
-              href={
-                period.mode === "month"
-                  ? `/transactions?m=${period.month}`
-                  : "/transactions"
-              }
+              href={`/transactions${periodQuery}`}
               className="text-indigo-600 hover:underline dark:text-indigo-400"
             >
               categorize now
@@ -309,8 +313,9 @@ export default async function DashboardPage({
                   {m.count}×{" "}
                   {period.mode === "month" ? "this month" : `in ${period.label}`}
                 </td>
+                {/* Spend magnitude, matching the "Spent in …" tile above. */}
                 <td className="py-2 text-right font-medium tabular-nums">
-                  {formatCents(-m.spend)}
+                  {formatCents(m.spend)}
                 </td>
               </tr>
             ))}

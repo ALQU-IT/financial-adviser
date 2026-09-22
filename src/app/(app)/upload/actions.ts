@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
@@ -30,7 +30,13 @@ const MAX_ROWS = 10000;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function importTransactions(payload: ImportPayload): Promise<
-  | { ok: true; statementId: number; imported: number; categorized: number }
+  | {
+      ok: true;
+      statementId: number;
+      imported: number;
+      categorized: number;
+      duplicates: number;
+    }
   | { ok: false; error: string }
 > {
   const user = await requireUser();
@@ -81,6 +87,8 @@ export async function importTransactions(payload: ImportPayload): Promise<
       categoryId,
     };
   });
+  const duplicates = countDuplicates(user.id, values);
+
   // Chunked inserts to stay under SQLite's bound-parameter limit.
   for (let i = 0; i < values.length; i += 200) {
     db.insert(schema.transactions).values(values.slice(i, i + 200)).run();
@@ -117,7 +125,69 @@ export async function importTransactions(payload: ImportPayload): Promise<
 
   revalidatePath("/");
   revalidatePath("/transactions");
-  return { ok: true, statementId, imported: values.length, categorized };
+  revalidatePath("/upload");
+  return {
+    ok: true,
+    statementId,
+    imported: values.length,
+    categorized,
+    duplicates,
+  };
+}
+
+/**
+ * How many of these rows already exist for this user (same date, merchant and
+ * amount). Statements from consecutive exports usually overlap, so importing
+ * one twice would quietly double the totals.
+ *
+ * This only warns — nothing is dropped, because two genuinely separate charges
+ * of the same amount at the same merchant on one day look identical here.
+ * Must be called before the rows are inserted, or it matches them against
+ * themselves. Counts are consumed so three existing rows never flag four
+ * incoming ones.
+ */
+function countDuplicates(
+  userId: number,
+  values: { date: string; merchantNorm: string; amountCents: number }[]
+): number {
+  if (values.length === 0) return 0;
+  let minDate = values[0].date;
+  let maxDate = values[0].date;
+  for (const v of values) {
+    if (v.date < minDate) minDate = v.date;
+    if (v.date > maxDate) maxDate = v.date;
+  }
+
+  const key = (v: { date: string; merchantNorm: string; amountCents: number }) =>
+    `${v.date}|${v.merchantNorm}|${v.amountCents}`;
+  const existing = new Map<string, number>();
+  const rows = db
+    .select({
+      date: schema.transactions.date,
+      merchantNorm: schema.transactions.merchantNorm,
+      amountCents: schema.transactions.amountCents,
+    })
+    .from(schema.transactions)
+    .where(
+      and(
+        eq(schema.transactions.userId, userId),
+        gte(schema.transactions.date, minDate),
+        lte(schema.transactions.date, maxDate)
+      )
+    )
+    .all();
+  for (const row of rows) existing.set(key(row), (existing.get(key(row)) ?? 0) + 1);
+
+  let duplicates = 0;
+  for (const v of values) {
+    const k = key(v);
+    const left = existing.get(k) ?? 0;
+    if (left > 0) {
+      duplicates++;
+      existing.set(k, left - 1);
+    }
+  }
+  return duplicates;
 }
 
 export async function deleteStatement(formData: FormData) {

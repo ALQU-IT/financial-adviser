@@ -16,6 +16,12 @@ export type Period = {
   prevLabel: string;
   granularity: "month" | "day"; // trend bucket size
   trendKeys: string[]; // month keys or ISO dates shown in the trend chart
+  // Inclusive ISO date the trend query reads from. Equal to `start` except in
+  // month mode, where the chart deliberately shows five months of history.
+  // It is NOT `trendKeys[0]` rounded to a month: for a 90-day lookback that
+  // would pull in spend from before the period and make the bars sum to more
+  // than the headline total.
+  trendStart: string;
   month?: string; // set in month mode
   lookbackUnit?: "d" | "m";
   lookbackN?: number;
@@ -43,6 +49,7 @@ export function resolvePeriod(
         prevLabel: `the ${n} month${n === 1 ? "" : "s"} before`,
         granularity: "month",
         trendKeys: Array.from({ length: n }, (_, i) => addMonths(startKey, i)),
+        trendStart: `${startKey}-01`,
         lookbackUnit: "m",
         lookbackN: n,
       };
@@ -68,6 +75,7 @@ export function resolvePeriod(
             for (let k = first; k <= today; k = addMonths(k, 1)) keys.push(k);
             return keys;
           })(),
+      trendStart: start,
       lookbackUnit: "d",
       lookbackN: n,
     };
@@ -87,6 +95,7 @@ export function resolvePeriod(
       prevLabel: "the previous 12 months",
       granularity: "month",
       trendKeys,
+      trendStart: `${startKey}-01`,
     };
   }
   if (params.y && years.includes(params.y)) {
@@ -104,6 +113,7 @@ export function resolvePeriod(
         { length: 12 },
         (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`
       ),
+      trendStart: `${y}-01-01`,
     };
   }
   const month = params.m && months.includes(params.m) ? params.m : months[0];
@@ -118,6 +128,7 @@ export function resolvePeriod(
     prevLabel: formatMonth(addMonths(month, -1)),
     granularity: "month",
     trendKeys: Array.from({ length: 6 }, (_, i) => addMonths(startKey, i)),
+    trendStart: `${startKey}-01`,
     month,
   };
 }

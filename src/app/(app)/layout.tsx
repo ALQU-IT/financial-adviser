@@ -11,7 +11,8 @@ export default async function AppLayout({
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <Link href="/" className="text-base font-semibold text-slate-900 dark:text-slate-100">
-            💶 Financial Adviser
+            {/* Currency-neutral: the display currency is configurable. */}
+            💳 Financial Adviser
           </Link>
           <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-300">
             <Link href="/" className="hover:text-slate-900 dark:hover:text-white">
