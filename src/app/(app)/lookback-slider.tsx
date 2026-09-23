@@ -13,11 +13,13 @@ export function LookbackSlider({
   unit: initialUnit,
   value: initialValue,
   basePath = "/",
+  extraQuery,
 }: {
   active: boolean;
   unit: "d" | "m";
   value: number;
   basePath?: string;
+  extraQuery?: string;
 }) {
   const router = useRouter();
   const [unit, setUnit] = useState<"d" | "m">(initialUnit);
@@ -29,7 +31,10 @@ export function LookbackSlider({
   useEffect(() => () => clearTimeout(timer.current), []);
 
   function apply(u: "d" | "m", v: number) {
-    router.replace(`${basePath}?back=${v}${u}`, { scroll: false });
+    router.replace(
+      `${basePath}?back=${v}${u}${extraQuery ? `&${extraQuery}` : ""}`,
+      { scroll: false }
+    );
   }
 
   function onSlide(v: number) {

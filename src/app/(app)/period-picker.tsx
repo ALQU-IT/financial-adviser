@@ -23,6 +23,7 @@ export function PeriodPicker({
   year,
   back,
   basePath = "/",
+  extraQuery,
 }: {
   months: { key: string; label: string }[];
   years: string[];
@@ -31,8 +32,13 @@ export function PeriodPicker({
   year?: string;
   back?: string; // e.g. "45d" when a lookback is active
   basePath?: string;
+  extraQuery?: string; // kept across period changes, e.g. "cat=5"
 }) {
   const router = useRouter();
+  const go = (query: string) =>
+    router.push(`${basePath}?${query}${extraQuery ? `&${extraQuery}` : ""}`, {
+      scroll: false,
+    });
 
   const monthValue = mode === "month" ? (month ?? "") : "";
   const yearValue = mode === "year" ? (year ?? "") : "";
@@ -59,7 +65,7 @@ export function PeriodPicker({
           onChange={(e) => {
             if (e.target.value) {
               setShowSlider(false);
-              router.push(`${basePath}?m=${e.target.value}`, { scroll: false });
+              go(`m=${e.target.value}`);
             }
           }}
         >
@@ -78,7 +84,7 @@ export function PeriodPicker({
           onChange={(e) => {
             if (e.target.value) {
               setShowSlider(false);
-              router.push(`${basePath}?y=${e.target.value}`, { scroll: false });
+              go(`y=${e.target.value}`);
             }
           }}
         >
@@ -100,7 +106,7 @@ export function PeriodPicker({
               setShowSlider(true);
             } else if (v) {
               setShowSlider(false);
-              router.push(`${basePath}?back=${v}`, { scroll: false });
+              go(`back=${v}`);
             }
           }}
         >
@@ -119,6 +125,7 @@ export function PeriodPicker({
           unit={sliderUnit}
           value={sliderValue}
           basePath={basePath}
+          extraQuery={extraQuery}
         />
       )}
     </div>

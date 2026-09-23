@@ -9,7 +9,7 @@ import {
   formatMonthShort,
   todayISO,
 } from "@/lib/dates";
-import { resolvePeriod } from "@/lib/period";
+import { periodQuery, resolvePeriod } from "@/lib/period";
 import { CategoryBars, TrendBars } from "./charts";
 import { PeriodPicker } from "./period-picker";
 
@@ -80,6 +80,7 @@ export default async function DashboardPage({
 
   const byCategory = db
     .select({
+      id: schema.categories.id,
       name: sql<string>`COALESCE(${schema.categories.name}, 'Uncategorized')`,
       color: sql<string>`COALESCE(${schema.categories.color}, '#b0aea6')`,
       spend: sql<number>`SUM(-${schema.transactions.amountCents})`,
@@ -177,14 +178,8 @@ export default async function DashboardPage({
   }
 
   // Keep the selected period when jumping to the transactions list.
-  const periodQuery =
-    period.mode === "month"
-      ? `?m=${period.month}`
-      : period.mode === "year"
-        ? `?y=${period.label}`
-        : period.mode === "last12"
-          ? "?p=last12"
-          : `?back=${period.lookbackN}${period.lookbackUnit}`;
+  const txHref = (extra?: string) =>
+    `/transactions?${periodQuery(period)}${extra ? `&${extra}` : ""}`;
 
   const currency = process.env.CURRENCY || "EUR";
 
@@ -262,7 +257,7 @@ export default async function DashboardPage({
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             uncategorized —{" "}
             <Link
-              href={`/transactions${periodQuery}`}
+              href={txHref("cat=none")}
               className="text-indigo-600 hover:underline dark:text-indigo-400"
             >
               categorize now
@@ -276,12 +271,16 @@ export default async function DashboardPage({
           <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
             Spending by category
           </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Click a category to see its transactions.
+          </p>
           <CategoryBars
             currency={currency}
             data={byCategory.map((c) => ({
               name: c.name,
               color: c.color,
               spend: c.spend / 100,
+              href: txHref(`cat=${c.id ?? "none"}`),
             }))}
           />
         </section>

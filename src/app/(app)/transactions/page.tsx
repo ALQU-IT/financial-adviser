@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { formatCents } from "@/lib/money";
 import { formatMonth } from "@/lib/dates";
-import { resolvePeriod } from "@/lib/period";
+import { periodQuery, resolvePeriod } from "@/lib/period";
 import { PeriodPicker } from "../period-picker";
 import { CategorySelect } from "./category-select";
 
@@ -13,7 +13,13 @@ const MAX_ROWS = 500;
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ m?: string; y?: string; p?: string; back?: string }>;
+  searchParams: Promise<{
+    m?: string;
+    y?: string;
+    p?: string;
+    back?: string;
+    cat?: string; // category id, or "none" for uncategorized
+  }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
@@ -52,11 +58,24 @@ export default async function TransactionsPage({
     .orderBy(schema.categories.name)
     .all();
 
+  // Optional category filter (from clicking a bar on the dashboard). An
+  // unknown id is ignored rather than showing an empty list.
+  const catFilter: { id: number | null; name: string } | null =
+    params.cat === "none"
+      ? { id: null, name: "Uncategorized" }
+      : (categories.find((c) => String(c.id) === params.cat) ?? null);
+
   const rangeWhere = and(
     eq(schema.transactions.userId, user.id),
     gte(schema.transactions.date, period.start),
-    lt(schema.transactions.date, period.endEx)
+    lt(schema.transactions.date, period.endEx),
+    catFilter == null
+      ? undefined
+      : catFilter.id == null
+        ? isNull(schema.transactions.categoryId)
+        : eq(schema.transactions.categoryId, catFilter.id)
   );
+  const catQuery = catFilter ? `cat=${catFilter.id ?? "none"}` : undefined;
 
   const summary = db
     .select({
@@ -84,9 +103,23 @@ export default async function TransactionsPage({
             Showing {period.label} — {summary.count} transactions,{" "}
             {formatCents(summary.spend)} spent
           </p>
+          {catFilter && (
+            <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-indigo-50 py-1 pl-3 pr-1 text-sm text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
+              Category: <strong>{catFilter.name}</strong>
+              <Link
+                href={`/transactions?${periodQuery(period)}`}
+                aria-label="Show all categories"
+                title="Show all categories"
+                className="rounded-full px-2 leading-5 hover:bg-indigo-100 dark:hover:bg-indigo-900"
+              >
+                ×
+              </Link>
+            </p>
+          )}
         </div>
         <PeriodPicker
           basePath="/transactions"
+          extraQuery={catQuery}
           months={months.slice(0, 36).map((m) => ({
             key: m,
             label: formatMonth(m),

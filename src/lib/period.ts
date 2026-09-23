@@ -27,6 +27,14 @@ export type Period = {
   lookbackN?: number;
 };
 
+/** Query string (without "?") that reselects this period on another page. */
+export function periodQuery(period: Period): string {
+  if (period.mode === "month") return `m=${period.month}`;
+  if (period.mode === "year") return `y=${period.label}`;
+  if (period.mode === "last12") return "p=last12";
+  return `back=${period.lookbackN}${period.lookbackUnit}`;
+}
+
 export function resolvePeriod(
   params: { m?: string; y?: string; p?: string; back?: string },
   months: string[],
