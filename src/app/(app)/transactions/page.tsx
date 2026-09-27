@@ -6,7 +6,9 @@ import { formatCents } from "@/lib/money";
 import { formatMonth } from "@/lib/dates";
 import { periodQuery, resolvePeriod } from "@/lib/period";
 import { PeriodPicker } from "../period-picker";
+import { X } from "lucide-react";
 import { CategorySelect } from "./category-select";
+import { Card, MerchantAvatar, PageHeader } from "../ui";
 
 const MAX_ROWS = 500;
 
@@ -37,14 +39,14 @@ export default async function TransactionsPage({
 
   if (months.length === 0) {
     return (
-      <div className="rounded-xl bg-white dark:bg-slate-900 p-8 text-center shadow-sm">
-        <p className="text-slate-600 dark:text-slate-300">No transactions yet.</p>
-        <Link
-          href="/upload"
-          className="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          Upload your first statement
-        </Link>
+      <div>
+        <PageHeader title="Transactions" />
+        <Card className="p-10 text-center">
+          <p className="text-sm text-secondary">No transactions yet.</p>
+          <Link href="/upload" className="btn-primary mt-4">
+            Import your first statement
+          </Link>
+        </Card>
       </div>
     );
   }
@@ -94,29 +96,31 @@ export default async function TransactionsPage({
     .limit(MAX_ROWS)
     .all();
 
+  // Group by day, newest first (rows already arrive in that order).
+  const days: { date: string; net: number; rows: typeof txs }[] = [];
+  for (const tx of txs) {
+    const last = days[days.length - 1];
+    if (last?.date === tx.date) {
+      last.rows.push(tx);
+      last.net += tx.amountCents;
+    } else {
+      days.push({ date: tx.date, net: tx.amountCents, rows: [tx] });
+    }
+  }
+  const colorById = new Map(categories.map((c) => [c.id, c.color]));
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">Transactions</h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            Showing {period.label} — {summary.count} transactions,{" "}
+    <div>
+      <PageHeader
+        title="Transactions"
+        subtitle={
+          <>
+            {period.label.charAt(0).toUpperCase() + period.label.slice(1)} ·{" "}
+            {summary.count} transactions ·{" "}
             {formatCents(summary.spend)} spent
-          </p>
-          {catFilter && (
-            <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-indigo-50 py-1 pl-3 pr-1 text-sm text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
-              Category: <strong>{catFilter.name}</strong>
-              <Link
-                href={`/transactions?${periodQuery(period)}`}
-                aria-label="Show all categories"
-                title="Show all categories"
-                className="rounded-full px-2 leading-5 hover:bg-indigo-100 dark:hover:bg-indigo-900"
-              >
-                ×
-              </Link>
-            </p>
-          )}
-        </div>
+          </>
+        }
+      >
         <PeriodPicker
           basePath="/transactions"
           extraQuery={catQuery}
@@ -134,56 +138,118 @@ export default async function TransactionsPage({
               : undefined
           }
         />
-      </div>
+      </PageHeader>
 
-      <div className="overflow-x-auto rounded-xl bg-white dark:bg-slate-900 shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {txs.map((tx) => (
-              <tr key={tx.id} className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2 whitespace-nowrap text-slate-500 dark:text-slate-400">
-                  {tx.date}
-                </td>
-                <td className="max-w-md truncate px-4 py-2" title={tx.merchant}>
-                  {tx.merchant}
-                </td>
-                <td className="px-4 py-2">
-                  <CategorySelect
-                    txId={tx.id}
-                    value={tx.categoryId}
-                    categories={categories}
-                  />
-                </td>
-                <td
-                  className={`px-4 py-2 text-right whitespace-nowrap font-medium ${
-                    tx.amountCents < 0 ? "text-slate-900 dark:text-slate-100" : "text-emerald-700 dark:text-emerald-400"
-                  }`}
-                >
-                  {formatCents(tx.amountCents)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card className="px-3 py-4 lg:p-4">
+        {catFilter && (
+          <div className="mb-4 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-container-inset py-1 pl-3 pr-1 text-sm">
+              <span className="text-secondary">Category:</span>
+              <span className="font-medium">{catFilter.name}</span>
+              <Link
+                href={`/transactions?${periodQuery(period)}`}
+                aria-label="Show all categories"
+                title="Show all categories"
+                className="flex h-5 w-5 items-center justify-center rounded-full text-secondary hover:bg-container-inset-hover hover:text-primary"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Link>
+            </span>
+          </div>
+        )}
+
+        {txs.length === 0 ? (
+          <p className="py-10 text-center text-sm text-secondary">
+            No transactions in this period.
+          </p>
+        ) : (
+          <>
+            <div className="mb-4 hidden grid-cols-12 items-center rounded-xl bg-container-inset px-5 py-3 text-xs font-medium uppercase text-secondary md:grid">
+              <p className="col-span-6">Transaction</p>
+              <p className="col-span-4">Category</p>
+              <p className="col-span-2 text-right">Amount</p>
+            </div>
+            <div className="space-y-4">
+              {days.map((day) => (
+                <div key={day.date} className="rounded-xl bg-container-inset p-1">
+                  <div className="flex items-center justify-between px-4 py-2 text-xs font-medium uppercase text-secondary">
+                    <p>
+                      {formatDay(day.date)}
+                      <span className="mx-1 text-subdued">·</span>
+                      {day.rows.length}
+                    </p>
+                    <p className="tabular-nums">{formatCents(day.net)}</p>
+                  </div>
+                  <div className="rounded-lg bg-container shadow-border-xs">
+                    {day.rows.map((tx, i) => (
+                      <div
+                        key={tx.id}
+                        data-tx-row
+                        // One grid, two arrangements: on phones the category
+                        // drops under the name (row 2); from md up it is its
+                        // own column. A single select either way.
+                        className={`grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 p-3 text-sm md:grid-cols-12 lg:p-4 ${
+                          i > 0 ? "border-t border-divider" : ""
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-3 md:col-span-6 lg:gap-4">
+                          <MerchantAvatar
+                            name={tx.merchant}
+                            color={
+                              tx.categoryId != null
+                                ? colorById.get(tx.categoryId)
+                                : undefined
+                            }
+                          />
+                          <p className="truncate font-medium" title={tx.merchant}>
+                            {tx.merchant}
+                          </p>
+                        </div>
+                        <div className="row-start-2 pl-12 md:col-span-4 md:row-start-auto md:pl-0 lg:pl-0">
+                          <CategorySelect
+                            txId={tx.id}
+                            value={tx.categoryId}
+                            categories={categories}
+                          />
+                        </div>
+                        <p
+                          className={`col-start-2 row-start-1 text-right font-medium tabular-nums md:col-span-2 md:col-start-auto md:row-start-auto ${
+                            tx.amountCents > 0 ? "text-success" : "text-primary"
+                          }`}
+                        >
+                          {tx.amountCents > 0 ? "+" : ""}
+                          {formatCents(tx.amountCents)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Card>
+
       {summary.count > MAX_ROWS && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">
+        <p className="mt-3 text-xs text-warning">
           Showing the {MAX_ROWS} most recent of {summary.count} transactions —
           narrow the period to see the rest.
         </p>
       )}
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="mt-3 text-xs text-secondary">
         Changing a category also applies it to future imports from the same
         merchant.
       </p>
     </div>
   );
+}
+
+function formatDay(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }

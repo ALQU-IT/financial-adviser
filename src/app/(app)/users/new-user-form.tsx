@@ -26,39 +26,39 @@ export function NewUserForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-4 flex flex-wrap items-end gap-3">
+    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
       <label className="block">
-        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Username</span>
+        <span className="text-sm font-medium text-primary">Username</span>
         <input
           name="username"
           required
           minLength={3}
-          className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className="field mt-1 block w-auto"
         />
       </label>
       <label className="block">
-        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Password</span>
+        <span className="text-sm font-medium text-primary">Password</span>
         <input
           name="password"
           type="password"
           required
           minLength={8}
-          className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className="field mt-1 block w-auto"
         />
       </label>
       <button
         type="submit"
         disabled={pending}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        className="btn-primary"
       >
         {pending ? "Adding…" : "Add user"}
       </button>
       {error && (
-        <p className="w-full text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="w-full text-sm text-destructive" role="alert">
           {error}
         </p>
       )}
-      {ok && <p className="w-full text-sm text-emerald-700 dark:text-emerald-400">User created.</p>}
+      {ok && <p className="w-full text-sm text-success">User created.</p>}
     </form>
   );
 }

@@ -52,12 +52,14 @@ export function PeriodPicker({
   const sliderValue = backMatch ? Number(backMatch[1]) : 6;
 
   const selectCls =
-    "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200";
-  const activeCls = "border-indigo-500 ring-1 ring-indigo-500";
+    "min-w-0 rounded-lg bg-container py-1.5 pl-3 pr-8 text-sm text-primary shadow-border-xs outline-none hover:bg-container-hover focus-visible:ring-2 focus-visible:ring-primary";
+  // Selected control: full-ink text and a solid ring, as Sure marks an
+  // active period.
+  const activeCls = "font-medium ring-1 ring-primary";
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex flex-wrap justify-end gap-2">
+    <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
         <select
           aria-label="Select month"
           className={`${selectCls} ${monthValue ? activeCls : ""}`}
@@ -98,7 +100,7 @@ export function PeriodPicker({
 
         <select
           aria-label="Select time range"
-          className={`${selectCls} ${rangeValue ? activeCls : ""}`}
+          className={`col-span-2 ${selectCls} ${rangeValue ? activeCls : ""}`}
           value={showSlider ? "custom" : rangeValue}
           onChange={(e) => {
             const v = e.target.value;

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { UploadWizard } from "./upload-wizard";
 import { deleteStatement } from "./actions";
 import { formatCents } from "@/lib/money";
+import { PageHeader, Section } from "../ui";
 
 export default async function UploadPage() {
   const user = await requireUser();
@@ -34,14 +35,11 @@ export default async function UploadPage() {
     .all();
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-lg font-semibold">Upload a statement</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Export your credit card statement as CSV and upload it here. You can
-          adjust which columns contain the date, description and amount.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Import a statement"
+        subtitle="Export your credit card statement as CSV and upload it here. You can adjust which columns contain the date, description and amount."
+      />
       <UploadWizard
         currency={process.env.CURRENCY || "EUR"}
         savedMappings={mappings.map((m) => ({
@@ -50,12 +48,11 @@ export default async function UploadPage() {
         }))}
       />
       {past.length > 0 && (
-        <section>
-          <h2 className="text-base font-semibold">Imported statements</h2>
-          <div className="mt-3 overflow-x-auto rounded-xl bg-white dark:bg-slate-900 shadow-sm">
+        <Section title="Imported statements" flush>
+          <div className="overflow-x-auto px-1 pb-1">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <tr className="bg-container-inset text-left text-xs font-medium uppercase text-secondary [&>th:first-child]:rounded-l-xl [&>th:last-child]:rounded-r-xl">
                   <th className="px-4 py-3">Provider</th>
                   <th className="px-4 py-3">File</th>
                   <th className="px-4 py-3">Uploaded</th>
@@ -66,14 +63,14 @@ export default async function UploadPage() {
               </thead>
               <tbody>
                 {past.map((s) => (
-                  <tr key={s.id} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="px-4 py-3">{s.provider}</td>
-                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{s.filename}</td>
-                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                  <tr key={s.id} className="border-t border-divider first:border-t-0">
+                    <td className="px-4 py-3 font-medium">{s.provider}</td>
+                    <td className="px-4 py-3 text-secondary">{s.filename}</td>
+                    <td className="px-4 py-3 text-secondary">
                       {s.uploadedAt.toLocaleDateString("en-GB")}
                     </td>
-                    <td className="px-4 py-3 text-right">{s.txCount}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right tabular-nums">{s.txCount}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
                       {formatCents(-s.total)}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -81,7 +78,7 @@ export default async function UploadPage() {
                         <input type="hidden" name="id" value={s.id} />
                         <button
                           type="submit"
-                          className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                          className="text-xs font-medium text-destructive hover:underline"
                         >
                           Delete
                         </button>
@@ -92,11 +89,11 @@ export default async function UploadPage() {
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <p className="px-4 py-3 text-xs text-secondary">
             Deleting a statement removes all of its transactions — useful if an
             import went wrong.
           </p>
-        </section>
+        </Section>
       )}
     </div>
   );

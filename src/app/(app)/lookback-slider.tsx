@@ -58,8 +58,8 @@ export function LookbackSlider({
     <div
       className={`flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 shadow-sm ${
         active
-          ? "bg-indigo-600 text-white"
-          : "bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+          ? "bg-inverse text-on-inverse"
+          : "bg-container text-secondary shadow-border-xs"
       }`}
     >
       <span className="text-sm font-medium whitespace-nowrap">
@@ -72,7 +72,7 @@ export function LookbackSlider({
         value={value}
         onChange={(e) => onSlide(Number(e.target.value))}
         className={`h-2 w-48 cursor-pointer sm:w-64 ${
-          active ? "accent-white" : "accent-indigo-600"
+          active ? "accent-[var(--fg-inverse)]" : "accent-[var(--fg-primary)]"
         }`}
         aria-label={`Look back this many ${limits.label}`}
       />
@@ -85,8 +85,8 @@ export function LookbackSlider({
             className={`px-2.5 py-1 font-medium ${
               unit === u
                 ? active
-                  ? "bg-white/25"
-                  : "bg-indigo-600 text-white"
+                  ? "bg-on-inverse/20"
+                  : "bg-inverse text-on-inverse"
                 : "opacity-70 hover:opacity-100"
             }`}
           >

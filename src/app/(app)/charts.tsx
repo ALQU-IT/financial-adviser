@@ -1,32 +1,33 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  LabelList,
+  Pie,
+  PieChart,
   ResponsiveContainer,
-  Text,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-// Single-hue marks from one blue ramp: identity comes from axis labels, the
-// emphasis step only marks the selected month. Values live in globals.css as
-// CSS variables so the charts follow the light/dark scheme.
+// Monochrome marks as in Sure: gray bars, the selected bucket in full ink.
+// Values live in globals.css as CSS variables so charts follow light/dark.
 const BAR = "var(--chart-bar)";
 const BAR_EMPHASIS = "var(--chart-bar-emphasis)";
 const GRID = "var(--chart-grid)";
 const MUTED = "var(--chart-muted)";
 
-function makeFormatter(currency: string) {
+function makeFormatter(currency: string, fractionDigits = 0) {
   return new Intl.NumberFormat("de-DE", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
   });
 }
 
@@ -43,107 +44,82 @@ function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 px-3 py-2 text-xs shadow-md">
-      <p className="font-medium text-slate-900 dark:text-slate-100">{label}</p>
-      <p className="text-slate-600 dark:text-slate-300">{fmt.format(Number(payload[0].value))}</p>
+    <div className="rounded-lg bg-container px-3 py-2 text-xs shadow-border-xs shadow-md">
+      <p className="font-medium text-primary">{label}</p>
+      <p className="text-secondary">{fmt.format(Number(payload[0].value))}</p>
     </div>
   );
 }
 
-export function CategoryBars({
+export type DonutSlice = {
+  name: string;
+  color: string;
+  spend: number;
+  href: string;
+};
+
+/**
+ * Outflows donut: total in the middle; hovering a slice swaps in that
+ * category's amount and share. Clicking a slice opens its transactions.
+ */
+export function SpendingDonut({
   data,
   currency,
 }: {
-  data: { name: string; color: string; spend: number; href: string }[];
+  data: DonutSlice[];
   currency: string;
 }) {
   const router = useRouter();
-  const fmt = makeFormatter(currency);
-  if (data.length === 0) {
-    return <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No expenses in this period.</p>;
-  }
-  // Resolve rows by category name: Recharts' index arguments differ between
-  // axis ticks and the chart surface, and a wrong index opens the wrong
-  // category. Names are unique (one row per category).
-  const open = (name: unknown) => {
-    const row = data.find((d) => d.name === name);
-    if (row) router.push(row.href);
-  };
-  const height = Math.max(160, data.length * 36 + 20);
+  const [hover, setHover] = useState<number | null>(null);
+  const fmt = makeFormatter(currency, 2);
+  const total = data.reduce((s, d) => s + d.spend, 0);
+  const active = hover != null ? data[hover] : null;
+
   return (
-    <div style={{ height }} className="mt-2 [&_.recharts-surface]:cursor-pointer">
+    <div className="relative mx-auto aspect-square w-full max-w-[260px]">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={data}
-          layout="vertical"
-          margin={{ top: 4, right: 64, bottom: 0, left: 8 }}
-          // Clicking anywhere on a row (bar, label or empty track) opens
-          // that category's transactions.
-          onClick={(state) => {
-            if (state?.activeLabel != null) open(state.activeLabel);
-          }}
-        >
-          <CartesianGrid horizontal={false} stroke={GRID} strokeWidth={1} />
-          <XAxis type="number" hide />
-          <YAxis
-            type="category"
-            dataKey="name"
-            width={150}
-            tickLine={false}
-            axisLine={false}
-            tick={(props: {
-              x: number | string;
-              y: number | string;
-              payload: { value: string };
-            }) => (
-              // Labels sit outside the plot area, where the chart's own
-              // onClick doesn't reach — so they navigate themselves.
-              // Recharts' Text keeps the default wrapping of long names
-              // ("Subscriptions & Media").
-              <Text
-                x={props.x}
-                y={props.y}
-                width={140}
-                textAnchor="end"
-                verticalAnchor="middle"
-                fill="var(--chart-ink)"
-                fontSize={12}
-                className="recharts-cartesian-axis-tick-value"
-                style={{ cursor: "pointer" }}
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  open(props.payload.value);
-                }}
-              >
-                {props.payload.value}
-              </Text>
-            )}
-          />
-          <Tooltip
-            cursor={{ fill: "color-mix(in srgb, var(--chart-muted) 12%, transparent)" }}
-            content={<ChartTooltip fmt={fmt} />}
-          />
-          <Bar
+        <PieChart>
+          <Pie
+            data={data}
             dataKey="spend"
-            barSize={16}
-            radius={[0, 4, 4, 0]}
-            fill={BAR}
-            // The chart-level onClick only knows the row once the tooltip is
-            // active, i.e. after a hover — a tap on a phone has none. The bar
-            // itself always knows its own row.
-            onClick={(entry: { payload?: { name?: string } }) =>
-              open(entry?.payload?.name)
-            }
+            nameKey="name"
+            innerRadius="78%"
+            outerRadius="100%"
+            paddingAngle={data.length > 1 ? 1.5 : 0}
+            cornerRadius={3}
+            stroke="none"
+            isAnimationActive={false}
+            onMouseEnter={(_, i) => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+            onClick={(entry: { payload?: { href?: string } }) => {
+              const href = entry?.payload?.href;
+              if (href) router.push(href);
+            }}
+            className="cursor-pointer outline-none"
           >
-            <LabelList
-              dataKey="spend"
-              position="right"
-              formatter={(v) => fmt.format(Number(v))}
-              style={{ fill: MUTED, fontSize: 11 }}
-            />
-          </Bar>
-        </BarChart>
+            {data.map((d, i) => (
+              <Cell
+                key={d.name}
+                fill={d.color}
+                fillOpacity={hover == null || hover === i ? 0.95 : 0.35}
+              />
+            ))}
+          </Pie>
+        </PieChart>
       </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+        <p className="mb-1 max-w-[70%] truncate text-sm text-secondary">
+          {active ? active.name : "Total outflows"}
+        </p>
+        <p className="text-2xl font-medium tabular-nums text-primary">
+          {fmt.format(active ? active.spend : total)}
+        </p>
+        {active && total > 0 && (
+          <p className="mt-1 text-sm text-secondary">
+            {((active.spend / total) * 100).toFixed(1)}%
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -157,12 +133,9 @@ export function TrendBars({
 }) {
   const fmt = makeFormatter(currency);
   return (
-    <div className="mt-2 h-64">
+    <div className="h-64">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={data}
-          margin={{ top: 16, right: 8, bottom: 0, left: 8 }}
-        >
+        <BarChart data={data} margin={{ top: 16, right: 8, bottom: 0, left: 8 }}>
           <CartesianGrid vertical={false} stroke={GRID} strokeWidth={1} />
           <XAxis
             dataKey="label"
@@ -178,7 +151,7 @@ export function TrendBars({
             width={70}
           />
           <Tooltip
-            cursor={{ fill: "color-mix(in srgb, var(--chart-muted) 12%, transparent)" }}
+            cursor={{ fill: "var(--container-inset)" }}
             content={<ChartTooltip fmt={fmt} />}
           />
           <Bar dataKey="spend" maxBarSize={28} radius={[4, 4, 0, 0]}>

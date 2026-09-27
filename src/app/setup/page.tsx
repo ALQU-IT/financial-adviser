@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Wallet } from "lucide-react";
 import { hasAnyUser } from "@/lib/auth";
 import { SetupForm } from "./setup-form";
 
@@ -8,10 +9,13 @@ export const dynamic = "force-dynamic";
 export default function SetupPage() {
   if (hasAnyUser()) redirect("/login");
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-xl bg-white dark:bg-slate-900 p-8 shadow-sm">
-        <h1 className="text-xl font-semibold">Welcome 👋</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 p-6">
+      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-inverse text-on-inverse">
+        <Wallet className="h-6 w-6" />
+      </span>
+      <div className="w-full max-w-sm rounded-xl bg-container p-8 shadow-border-xs">
+        <h1 className="text-xl font-medium">Welcome</h1>
+        <p className="mt-1 text-sm text-secondary">
           First run — create the admin account for this server.
         </p>
         <SetupForm />

@@ -10,7 +10,9 @@ import {
   todayISO,
 } from "@/lib/dates";
 import { periodQuery, resolvePeriod } from "@/lib/period";
-import { CategoryBars, TrendBars } from "./charts";
+import { TrendingDown, TrendingUp } from "lucide-react";
+import { SpendingDonut, TrendBars } from "./charts";
+import { Card, MerchantAvatar, PageHeader, Section } from "./ui";
 import { PeriodPicker } from "./period-picker";
 
 export default async function DashboardPage({
@@ -34,18 +36,21 @@ export default async function DashboardPage({
 
   if (months.length === 0) {
     return (
-      <div className="rounded-xl bg-white dark:bg-slate-900 p-10 text-center shadow-sm">
-        <h1 className="text-lg font-semibold">Welcome to Financial Adviser</h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-300">
-          Upload your first credit card statement (CSV) and you&apos;ll see
-          where your money goes — by category, merchant and month.
-        </p>
-        <Link
-          href="/upload"
-          className="mt-4 inline-block rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          Upload a statement
-        </Link>
+      <div>
+        <PageHeader
+          title={`Welcome, ${user.username}`}
+          subtitle="Let's see where your money goes."
+        />
+        <Card className="p-10 text-center">
+          <h2 className="text-base font-medium">No transactions yet</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-secondary">
+            Import your first credit card statement (CSV) and you&apos;ll see
+            where your money goes — by category, merchant and month.
+          </p>
+          <Link href="/upload" className="btn-primary mt-4">
+            Import a statement
+          </Link>
+        </Card>
       </div>
     );
   }
@@ -182,16 +187,15 @@ export default async function DashboardPage({
     `/transactions?${periodQuery(period)}${extra ? `&${extra}` : ""}`;
 
   const currency = process.env.CURRENCY || "EUR";
+  const outflowTotal = byCategory.reduce((sum, c) => sum + c.spend, 0);
+  const deltaUp = delta != null && delta > 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            Showing {period.label}
-          </p>
-        </div>
+    <div>
+      <PageHeader
+        title={`Welcome back, ${user.username}`}
+        subtitle={<>Here&apos;s where your money went in {period.label}.</>}
+      >
         <PeriodPicker
           months={months.slice(0, 36).map((m) => ({
             key: m,
@@ -207,120 +211,191 @@ export default async function DashboardPage({
               : undefined
           }
         />
-      </div>
+      </PageHeader>
 
-      {/* Stat tiles */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Spent in {period.label}
-          </p>
-          <p className="mt-1 text-2xl font-semibold">
-            {formatCents(totals.spend)}
-          </p>
-          <p className="mt-1 text-sm">
-            {delta != null && (
-              <span
-                className={
-                  delta > 0
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-emerald-700 dark:text-emerald-400"
-                }
+      <div className="space-y-6">
+        {/* Stat tiles */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card className="p-4">
+            <p className="text-sm text-secondary">Spent in {period.label}</p>
+            <p className="mt-1 text-2xl font-medium tabular-nums lg:text-3xl">
+              {formatCents(totals.spend)}
+            </p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-1 text-sm">
+              {delta != null && (
+                <span
+                  className={`inline-flex items-center gap-0.5 font-medium ${
+                    deltaUp ? "text-destructive" : "text-success"
+                  }`}
+                >
+                  {deltaUp ? (
+                    <TrendingUp className="h-4 w-4" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4" />
+                  )}
+                  {Math.abs(delta).toFixed(0)}%
+                </span>
+              )}
+              {delta != null && (
+                <span className="text-secondary">vs {period.prevLabel}</span>
+              )}
+              {avg != null && (
+                <span className="text-secondary">
+                  {delta != null && "· "}Ø {formatCents(avg.cents)}/{avg.unit}
+                </span>
+              )}
+            </p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-sm text-secondary">Refunds &amp; credits</p>
+            <p className="mt-1 text-2xl font-medium tabular-nums text-success lg:text-3xl">
+              {formatCents(totals.income)}
+            </p>
+            <p className="mt-1 text-sm text-secondary">
+              {totals.count} transactions
+            </p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-sm text-secondary">Needs review</p>
+            <p className="mt-1 text-2xl font-medium tabular-nums lg:text-3xl">
+              {uncategorized.count}
+            </p>
+            <p className="mt-1 text-sm text-secondary">
+              uncategorized ·{" "}
+              <Link
+                href={txHref("cat=none")}
+                className="font-medium text-primary underline-offset-2 hover:underline"
               >
-                {delta > 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}% vs{" "}
-                {period.prevLabel}
-              </span>
-            )}
-            {avg != null && (
-              <span className="text-slate-500 dark:text-slate-400">
-                {delta != null && " · "}Ø {formatCents(avg.cents)}/{avg.unit}
-              </span>
-            )}
-          </p>
+                categorize now
+              </Link>
+            </p>
+          </Card>
         </div>
-        <div className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Refunds &amp; credits
-          </p>
-          <p className="mt-1 text-2xl font-semibold text-emerald-700 dark:text-emerald-400">
-            {formatCents(totals.income)}
-          </p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {totals.count} transactions
-          </p>
-        </div>
-        <div className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Needs review
-          </p>
-          <p className="mt-1 text-2xl font-semibold">{uncategorized.count}</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            uncategorized —{" "}
-            <Link
-              href={txHref("cat=none")}
-              className="text-indigo-600 hover:underline dark:text-indigo-400"
-            >
-              categorize now
-            </Link>
-          </p>
+
+        <Section
+          title="Spending by category"
+          aside={
+            <span className="hidden text-xs text-secondary sm:inline">
+              Click a category to see its transactions
+            </span>
+          }
+        >
+          {byCategory.length === 0 ? (
+            <p className="py-6 text-center text-sm text-secondary">
+              No expenses in this period.
+            </p>
+          ) : (
+            <div className="flex flex-col items-center gap-8 md:flex-row">
+              <div className="w-full md:w-1/3">
+                <SpendingDonut
+                  currency={currency}
+                  data={byCategory.map((c) => ({
+                    name: c.name,
+                    color: c.color,
+                    spend: c.spend / 100,
+                    href: txHref(`cat=${c.id ?? "none"}`),
+                  }))}
+                />
+              </div>
+              <div className="w-full space-y-1 overflow-x-auto rounded-xl bg-container-inset p-1 md:w-2/3">
+                <div className="flex items-center px-4 py-2 text-xs font-medium uppercase text-secondary">
+                  <p>
+                    Categories
+                    <span className="mx-1 text-subdued">·</span>
+                    {byCategory.length}
+                  </p>
+                  <div className="ml-auto flex items-center gap-6 text-right">
+                    <p className="w-24 sm:w-32">Value</p>
+                    <p className="w-14">Weight</p>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-container shadow-border-xs">
+                  {byCategory.map((c, i) => {
+                    const weight = outflowTotal > 0 ? (c.spend / outflowTotal) * 100 : 0;
+                    return (
+                      <Link
+                        key={c.id ?? "none"}
+                        href={txHref(`cat=${c.id ?? "none"}`)}
+                        data-category={c.name}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm hover:bg-container-hover ${
+                          i > 0 ? "border-t border-divider" : ""
+                        } ${i === 0 ? "rounded-t-lg" : ""} ${
+                          i === byCategory.length - 1 ? "rounded-b-lg" : ""
+                        }`}
+                      >
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: c.color }}
+                        />
+                        <span className="min-w-0 truncate font-medium">{c.name}</span>
+                        <div className="ml-auto flex items-center gap-6 text-right">
+                          <span className="w-24 tabular-nums sm:w-32">
+                            {formatCents(c.spend)}
+                          </span>
+                          <span className="flex w-14 items-center justify-end gap-2 tabular-nums text-secondary">
+                            {weight.toFixed(0)}%
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </Section>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Section
+            title={period.granularity === "day" ? "Daily spend" : "Monthly spend"}
+            aside={
+              <span className="text-xs text-secondary">
+                {period.mode === "month"
+                  ? "Last 6 months"
+                  : period.label.charAt(0).toUpperCase() + period.label.slice(1)}
+              </span>
+            }
+          >
+            <TrendBars currency={currency} data={trend} />
+          </Section>
+
+          <Section title="Top merchants" flush>
+            <div className="px-1 pb-1">
+              <div className="rounded-xl bg-container-inset p-1">
+                <div className="flex items-center px-4 py-2 text-xs font-medium uppercase text-secondary">
+                  <p>Merchant</p>
+                  <p className="ml-auto">Spent</p>
+                </div>
+                <div className="rounded-lg bg-container shadow-border-xs">
+                  {topMerchants.map((m, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-3 px-4 py-2.5 text-sm ${
+                        i > 0 ? "border-t border-divider" : ""
+                      }`}
+                    >
+                      <MerchantAvatar name={m.merchant} size="sm" />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium" title={m.merchant}>
+                          {m.merchant}
+                        </p>
+                        <p className="text-xs text-secondary">
+                          {m.count}×{" "}
+                          {period.mode === "month" ? "this month" : `in ${period.label}`}
+                        </p>
+                      </div>
+                      {/* Spend magnitude, matching the "Spent in …" tile. */}
+                      <span className="ml-auto font-medium tabular-nums">
+                        {formatCents(m.spend)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Section>
         </div>
       </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Spending by category
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Click a category to see its transactions.
-          </p>
-          <CategoryBars
-            currency={currency}
-            data={byCategory.map((c) => ({
-              name: c.name,
-              color: c.color,
-              spend: c.spend / 100,
-              href: txHref(`cat=${c.id ?? "none"}`),
-            }))}
-          />
-        </section>
-
-        <section className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            {period.granularity === "day" ? "Daily spend" : "Monthly spend"}
-            {period.mode === "month" ? " (last 6 months)" : ` (${period.label})`}
-          </h2>
-          <TrendBars currency={currency} data={trend} />
-        </section>
-      </div>
-
-      <section className="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-          Top merchants
-        </h2>
-        <table className="mt-3 w-full text-sm">
-          <tbody>
-            {topMerchants.map((m, i) => (
-              <tr
-                key={i}
-                className="border-b border-slate-100 dark:border-slate-800 last:border-0"
-              >
-                <td className="max-w-md truncate py-2 pr-4" title={m.merchant}>
-                  {m.merchant}
-                </td>
-                <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
-                  {m.count}×{" "}
-                  {period.mode === "month" ? "this month" : `in ${period.label}`}
-                </td>
-                {/* Spend magnitude, matching the "Spent in …" tile above. */}
-                <td className="py-2 text-right font-medium tabular-nums">
-                  {formatCents(m.spend)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
     </div>
   );
 }

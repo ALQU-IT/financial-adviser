@@ -252,12 +252,12 @@ export function UploadWizard({
   }
 
   const selectCls =
-    "mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none";
+    "field mt-1";
 
   return (
-    <div className="rounded-xl bg-white dark:bg-slate-900 p-6 shadow-sm">
+    <div className="rounded-xl bg-container p-6 shadow-border-xs">
       {result && (
-        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+        <div className="mb-4 rounded-xl bg-container-inset p-4 text-sm text-primary shadow-border-xs">
           Imported <strong>{result.imported}</strong> transactions,{" "}
           <strong>{result.categorized}</strong> categorized automatically
           {result.skipped > 0 && <> ({result.skipped} unreadable rows skipped)</>}
@@ -266,7 +266,7 @@ export function UploadWizard({
       )}
 
       {result && result.duplicates > 0 && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <div className="mb-4 rounded-xl bg-warning-bg p-4 text-sm text-warning shadow-border-xs">
           <strong>{result.duplicates}</strong> of them match transactions you
           had already imported (same date, description and amount), so your
           totals may now count them twice. If this file overlaps an earlier
@@ -275,7 +275,7 @@ export function UploadWizard({
       )}
 
       <label className="block">
-        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">CSV file</span>
+        <span className="text-sm font-medium text-primary">CSV file</span>
         <input
           type="file"
           accept=".csv,text/csv,text/plain"
@@ -283,7 +283,7 @@ export function UploadWizard({
             const f = e.target.files?.[0];
             if (f) void onFile(f);
           }}
-          className="mt-1 block w-full text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-950 dark:file:text-indigo-300 dark:hover:file:bg-indigo-900"
+          className="mt-1 block w-full text-sm text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-container-inset file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-container-inset-hover"
         />
       </label>
 
@@ -291,7 +291,7 @@ export function UploadWizard({
         <div className="mt-6 space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-sm font-medium text-primary">
                 Provider name
               </span>
               <input
@@ -306,13 +306,13 @@ export function UploadWizard({
                   <option key={m.name} value={m.name} />
                 ))}
               </datalist>
-              <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+              <span className="mt-1 block text-xs text-secondary">
                 Saves these column settings for next time.
               </span>
             </label>
             {savedMappings.length > 0 && (
               <label className="block">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                <span className="text-sm font-medium text-primary">
                   Apply saved preset
                 </span>
                 <select
@@ -339,9 +339,9 @@ export function UploadWizard({
                 type="checkbox"
                 checked={hasHeader}
                 onChange={(e) => setHasHeader(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                className="h-4 w-4 rounded border-input accent-[var(--fg-primary)]"
               />
-              <span className="text-sm text-slate-700 dark:text-slate-300">
+              <span className="text-sm text-primary">
                 First row is a header
               </span>
             </label>
@@ -349,7 +349,7 @@ export function UploadWizard({
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-sm font-medium text-primary">
                 Date column
               </span>
               <select
@@ -365,7 +365,7 @@ export function UploadWizard({
               </select>
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-sm font-medium text-primary">
                 Date format
               </span>
               <select
@@ -381,7 +381,7 @@ export function UploadWizard({
               </select>
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-sm font-medium text-primary">
                 Description column
               </span>
               <select
@@ -397,7 +397,7 @@ export function UploadWizard({
               </select>
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-sm font-medium text-primary">
                 Amount column
               </span>
               <select
@@ -416,7 +416,7 @@ export function UploadWizard({
 
           <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            <span className="text-sm font-medium text-primary">
               Number format
             </span>
             <select
@@ -434,7 +434,7 @@ export function UploadWizard({
             </select>
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            <span className="text-sm font-medium text-primary">
               Sign convention
             </span>
             <select
@@ -453,14 +453,14 @@ export function UploadWizard({
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+            <h3 className="text-sm font-semibold text-primary">
               Preview ({normalized.rows.length} rows ready
               {normalized.skipped > 0 && `, ${normalized.skipped} skipped`})
             </h3>
-            <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+            <div className="mt-2 overflow-x-auto rounded-lg border border-divider">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <tr className="border-b border-divider bg-container-inset text-left text-xs uppercase tracking-wide text-secondary">
                     <th className="px-3 py-2">Date</th>
                     <th className="px-3 py-2">Description</th>
                     <th className="px-3 py-2 text-right">Amount</th>
@@ -468,14 +468,14 @@ export function UploadWizard({
                 </thead>
                 <tbody>
                   {normalized.rows.slice(0, 8).map((row, i) => (
-                    <tr key={i} className="border-b border-slate-100 dark:border-slate-800">
+                    <tr key={i} className="border-b border-divider">
                       <td className="px-3 py-2 whitespace-nowrap">{row.date}</td>
                       <td className="px-3 py-2">{row.merchant}</td>
                       <td
                         className={`px-3 py-2 text-right whitespace-nowrap ${
                           row.amountCents < 0
-                            ? "text-slate-900 dark:text-slate-100"
-                            : "text-emerald-700 dark:text-emerald-400"
+                            ? "text-primary"
+                            : "text-success"
                         }`}
                       >
                         {formatCents(row.amountCents, currency)}
@@ -485,14 +485,14 @@ export function UploadWizard({
                 </tbody>
               </table>
             </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-secondary">
               Expenses should show as negative amounts. If they look positive,
               switch the sign convention above.
             </p>
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {error}
             </p>
           )}
@@ -500,7 +500,7 @@ export function UploadWizard({
           <button
             onClick={submit}
             disabled={pending || normalized.rows.length === 0}
-            className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="btn-primary px-5"
           >
             {pending
               ? "Importing…"
@@ -509,7 +509,7 @@ export function UploadWizard({
         </div>
       )}
       {error && grid.length === 0 && (
-        <p className="mt-4 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="mt-4 text-sm text-destructive" role="alert">
           {error}
         </p>
       )}
