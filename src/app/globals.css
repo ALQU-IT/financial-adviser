@@ -141,3 +141,14 @@ body {
     border-color: color-mix(in srgb, var(--c) 45%, transparent);
   }
 }
+
+/*
+ * Native dropdown lists. Options inherit the select's colour, and on
+ * Windows Chrome the open list also inherits its (translucent) background —
+ * so a tinted category pill rendered its options as pale text on a pale
+ * wash, unreadable. Give options solid theme colours of their own.
+ */
+select option {
+  background-color: var(--container);
+  color: var(--fg-primary);
+}
