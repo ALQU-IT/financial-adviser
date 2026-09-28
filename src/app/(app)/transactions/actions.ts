@@ -1,14 +1,16 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 
 /**
- * Set the category of one transaction. Also stores a user rule for the
- * merchant so future imports (and current uncategorized transactions of the
- * same merchant) pick it up automatically.
+ * Set the category of a transaction and of every other transaction of the
+ * same merchant, and store a user rule so future imports follow it too.
+ * Applies to already-categorized rows as well: a merchant's transactions
+ * should never end up split across categories because some of them were
+ * auto-categorized earlier.
  */
 export async function setCategory(
   txId: number,
@@ -38,11 +40,6 @@ export async function setCategory(
     if (!category) return { ok: false };
   }
 
-  db.update(schema.transactions)
-    .set({ categoryId })
-    .where(eq(schema.transactions.id, txId))
-    .run();
-
   // Replace any existing user rule for this merchant.
   db.delete(schema.rules)
     .where(
@@ -61,18 +58,18 @@ export async function setCategory(
         userId: user.id,
       })
       .run();
-    // Apply to this user's other uncategorized transactions of the merchant.
-    db.update(schema.transactions)
-      .set({ categoryId })
-      .where(
-        and(
-          eq(schema.transactions.userId, user.id),
-          eq(schema.transactions.merchantNorm, tx.merchantNorm),
-          isNull(schema.transactions.categoryId)
-        )
-      )
-      .run();
   }
+
+  // This row and every other one of the merchant, whatever their category.
+  db.update(schema.transactions)
+    .set({ categoryId })
+    .where(
+      and(
+        eq(schema.transactions.userId, user.id),
+        eq(schema.transactions.merchantNorm, tx.merchantNorm)
+      )
+    )
+    .run();
 
   revalidatePath("/");
   revalidatePath("/transactions");

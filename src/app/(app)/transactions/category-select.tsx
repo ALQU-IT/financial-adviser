@@ -16,7 +16,7 @@ export function CategorySelect({
 }) {
   const [pending, startTransition] = useTransition();
   // Controlled, because setting one row's category also recategorizes every
-  // other uncategorized row of the same merchant. An uncontrolled select
+  // other row of the same merchant. An uncontrolled select
   // (defaultValue) is only synced by React on mount, so those rows kept
   // displaying "Uncategorized" after the server had already updated them.
   const [selected, setSelected] = useState(value == null ? "" : String(value));

@@ -237,8 +237,8 @@ export default async function TransactionsPage({
         </p>
       )}
       <p className="mt-3 text-xs text-secondary">
-        Changing a category also applies it to future imports from the same
-        merchant.
+        Changing a category applies it to every transaction from the same
+        merchant, including future imports.
       </p>
     </div>
   );
