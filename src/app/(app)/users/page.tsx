@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { deleteUser } from "./actions";
+import { deleteUser, resetUserTwoFactor } from "./actions";
+import { hasSecondFactor } from "@/lib/twofactor";
 import { NewUserForm } from "./new-user-form";
 import { MerchantAvatar, PageHeader, Section } from "../ui";
 
@@ -36,10 +37,25 @@ export default async function UsersPage() {
                         <span className="ml-1.5 text-xs font-normal text-secondary">(you)</span>
                       )}
                     </p>
-                    <p className="text-xs capitalize text-secondary">{u.role}</p>
+                    <p className="text-xs text-secondary">
+                      <span className="capitalize">{u.role}</span>
+                      {hasSecondFactor(u.id) && " · 2FA on"}
+                    </p>
                   </div>
+                  {u.id !== user.id && hasSecondFactor(u.id) && (
+                    <form action={resetUserTwoFactor} className="ml-auto">
+                      <input type="hidden" name="id" value={u.id} />
+                      <button
+                        type="submit"
+                        className="text-xs font-medium text-secondary hover:text-primary hover:underline"
+                        title="Turn off their authenticator app and remove their security keys"
+                      >
+                        Reset 2FA
+                      </button>
+                    </form>
+                  )}
                   {u.id !== user.id && (
-                    <form action={deleteUser} className="ml-auto">
+                    <form action={deleteUser} className={hasSecondFactor(u.id) ? "" : "ml-auto"}>
                       <input type="hidden" name="id" value={u.id} />
                       <button
                         type="submit"

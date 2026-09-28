@@ -106,7 +106,77 @@ function bootstrap(sqlite: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+    -- Optional two-factor authentication (per user, off by default).
+    CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id TEXT PRIMARY KEY, -- base64url credential ID
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      public_key TEXT NOT NULL, -- base64url COSE key
+      counter INTEGER NOT NULL DEFAULT 0,
+      transports TEXT, -- JSON array
+      name TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_used_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS recovery_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      used_at INTEGER
+    );
+    -- Password accepted, second factor still outstanding.
+    CREATE TABLE IF NOT EXISTS pending_logins (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      challenge TEXT
+    );
+    -- WebAuthn registration challenges, keyed by user.
+    CREATE TABLE IF NOT EXISTS auth_challenges (
+      key TEXT PRIMARY KEY,
+      challenge TEXT NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
   `);
+
+  // Columns added after the first release: ALTER only when missing, so
+  // existing databases upgrade in place.
+  const userCols = new Set(
+    (sqlite.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map(
+      (c) => c.name
+    )
+  );
+  if (!userCols.has("totp_secret"))
+    sqlite.exec("ALTER TABLE users ADD COLUMN totp_secret TEXT");
+  if (!userCols.has("totp_enabled"))
+    sqlite.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0");
+  if (!userCols.has("totp_last_step"))
+    sqlite.exec("ALTER TABLE users ADD COLUMN totp_last_step INTEGER");
+
+  // Lockout escape hatch for a self-hosted box: RESET_2FA_USER=<username>
+  // clears that user's second factors on start (then remove the variable).
+  const resetUser = process.env.RESET_2FA_USER?.trim();
+  if (resetUser) {
+    const u = sqlite
+      .prepare("SELECT id FROM users WHERE username = ?")
+      .get(resetUser) as { id: number } | undefined;
+    if (u) {
+      sqlite.transaction(() => {
+        sqlite
+          .prepare(
+            "UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_last_step = NULL WHERE id = ?"
+          )
+          .run(u.id);
+        sqlite.prepare("DELETE FROM webauthn_credentials WHERE user_id = ?").run(u.id);
+        sqlite.prepare("DELETE FROM recovery_codes WHERE user_id = ?").run(u.id);
+        sqlite.prepare("DELETE FROM pending_logins WHERE user_id = ?").run(u.id);
+      })();
+      console.warn(
+        `financial-adviser: two-factor authentication reset for "${resetUser}" (RESET_2FA_USER). Remove the variable now.`
+      );
+    }
+  }
 
   // Idempotent and safe under concurrent bootstrap (e.g. parallel build
   // workers): INSERT OR IGNORE keyed on unique names, rules only seeded once.

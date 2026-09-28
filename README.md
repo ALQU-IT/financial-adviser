@@ -78,6 +78,42 @@ Environment variables:
 | `COOKIE_SECURE` | unset | Set to `true` when serving via HTTPS |
 | `CURRENCY` | `EUR` | Display currency (ISO 4217 code, e.g. `CHF`) |
 | `PUID` / `PGID` | `568` | User the server runs as; the data directory is chowned to it |
+| `RESET_2FA_USER` | unset | Clears that user's two-factor authentication on start (lockout recovery) — remove it again afterwards |
+| `WEBAUTHN_RP_ID` / `APP_ORIGIN` | from the request | Override the hostname/origin security keys are bound to (rarely needed) |
+
+### Two-factor authentication (optional)
+
+Each user can turn it on under **account menu → Security & 2FA**; nobody is
+forced to. Once on, signing in needs the password plus one of:
+
+- **Authenticator app** (TOTP): Google/Microsoft Authenticator, 1Password,
+  Bitwarden, Aegis, … — scan the QR code, confirm one code.
+- **Security key or passkey** (FIDO2/WebAuthn): YubiKey, Windows Hello,
+  Touch ID/Face ID, Android.
+- **Recovery code**: 10 one-time codes are shown when you turn on your first
+  method. Save them.
+
+Turning a method off, removing a key or regenerating recovery codes asks for
+the password again. Admins can **Reset 2FA** for another user on the Users
+page.
+
+**Security keys need a hostname and a trusted certificate.** Browsers refuse
+WebAuthn on an IP address (`https://192.168.1.10:3443` won't work) and on
+certificate warnings. So:
+
+1. Reach the NAS by name — e.g. `https://truenas.local:3443` (mDNS works on
+   most networks), or add a DNS entry in your router/Pi-hole such as
+   `money.home.arpa` → NAS IP.
+2. Trust Caddy's root certificate on each device (see above).
+3. Register the key **while using that hostname**: a key is bound to the
+   name it was registered on, and only works there.
+
+The authenticator app works with any address, including the IP.
+
+**Locked out** (lost phone/key *and* recovery codes)? Another admin can reset
+it on the Users page. If you are the only admin, add
+`RESET_2FA_USER: <your username>` to the app's environment, restart, sign in
+with your password, then remove the variable and restart again.
 
 > **Note:** keep the app LAN-only and use your VPN (WireGuard/Tailscale) for
 > remote access. Don't port-forward it to the internet without an extra auth

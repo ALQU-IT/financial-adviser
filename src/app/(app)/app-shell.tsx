@@ -7,6 +7,7 @@ import {
   ChartPie,
   CreditCard,
   LogOut,
+  Shield,
   Upload,
   Users,
   Wallet,
@@ -22,6 +23,11 @@ const NAV: NavItem[] = [
   { name: "Import", href: "/upload", icon: Upload },
 ];
 const ADMIN_NAV: NavItem = { name: "Users", href: "/users", icon: Users };
+
+// Pages reached from the account menu rather than the rail.
+const MENU_PAGES: NavItem[] = [
+  { name: "Security", href: "/settings/security", icon: Shield },
+];
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -125,6 +131,14 @@ function UserMenu({
             </div>
           </div>
           <div className="my-1 border-t border-divider" />
+          <Link
+            href="/settings/security"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-primary hover:bg-container-inset"
+          >
+            <Shield className="h-4 w-4 text-secondary" />
+            Security &amp; 2FA
+          </Link>
           <form action={logout}>
             <button
               type="submit"
@@ -151,7 +165,8 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const items = role === "admin" ? [...NAV, ADMIN_NAV] : NAV;
-  const current = items.find((i) => isActive(pathname, i.href)) ?? items[0];
+  const current =
+    [...MENU_PAGES, ...items].find((i) => isActive(pathname, i.href)) ?? items[0];
 
   return (
     <div className="flex h-dvh flex-col bg-surface lg:flex-row">

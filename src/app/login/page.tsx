@@ -6,7 +6,17 @@ import { LoginForm } from "./login-form";
 // Reads the user table on every request — must never be prerendered.
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+const NOTICES: Record<string, string> = {
+  "too-many": "Too many wrong codes. For your security, please enter your password again.",
+  expired: "Your sign-in timed out. Please enter your password again.",
+};
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reason?: string }>;
+}) {
+  const notice = NOTICES[(await searchParams).reason ?? ""];
   if (!hasAnyUser()) redirect("/setup");
   if (await getSessionUser()) redirect("/");
   return (
@@ -19,6 +29,11 @@ export default async function LoginPage() {
         <p className="mt-1 text-sm text-secondary">
           Sign in to see your spending dashboard.
         </p>
+        {notice && (
+          <p className="mt-4 rounded-lg bg-warning-bg p-3 text-sm text-warning" role="status">
+            {notice}
+          </p>
+        )}
         <LoginForm />
       </div>
     </main>

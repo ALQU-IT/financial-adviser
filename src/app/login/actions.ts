@@ -10,6 +10,7 @@ import {
   hasAnyUser,
   verifyPassword,
 } from "@/lib/auth";
+import { hasSecondFactor, startPendingLogin } from "@/lib/twofactor";
 
 export async function login(
   formData: FormData
@@ -30,6 +31,12 @@ export async function login(
     "$2b$12$C6UzMDM.H6dfI/f/IKcEeO7ZBpTQIystVZKzYcOZYnQe8mVWq1Oy2";
   const ok = await verifyPassword(password, hash);
   if (!user || !ok) return { error: "Wrong username or password." };
+
+  // Optional 2FA: only users who turned it on get the second step.
+  if (hasSecondFactor(user.id)) {
+    await startPendingLogin(user.id);
+    redirect("/login/verify");
+  }
 
   await createSession(user.id);
   redirect("/");

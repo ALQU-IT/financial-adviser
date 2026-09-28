@@ -8,6 +8,50 @@ export const users = sqliteTable("users", {
     .notNull()
     .default("user"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  // Optional TOTP (authenticator app). The secret is stored while setup is
+  // in progress; only totpEnabled makes it required at sign-in.
+  totpSecret: text("totp_secret"),
+  totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
+  // Last accepted 30-second step, so a code cannot be replayed.
+  totpLastStep: integer("totp_last_step"),
+});
+
+export const webauthnCredentials = sqliteTable("webauthn_credentials", {
+  id: text("id").primaryKey(), // base64url credential ID
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  publicKey: text("public_key").notNull(), // base64url
+  counter: integer("counter").notNull().default(0),
+  transports: text("transports"), // JSON array
+  name: text("name").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+});
+
+export const recoveryCodes = sqliteTable("recovery_codes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash").notNull(), // sha256 hex
+  usedAt: integer("used_at", { mode: "timestamp" }),
+});
+
+export const pendingLogins = sqliteTable("pending_logins", {
+  token: text("token").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  challenge: text("challenge"), // WebAuthn challenge for this login
+});
+
+export const authChallenges = sqliteTable("auth_challenges", {
+  key: text("key").primaryKey(),
+  challenge: text("challenge").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
 });
 
 export const sessions = sqliteTable("sessions", {

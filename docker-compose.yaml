@@ -30,6 +30,9 @@ services:
       CURRENCY: CHF
       # All access is HTTPS now, so the session cookie can be Secure.
       COOKIE_SECURE: "true"
+      # Locked out of two-factor authentication? Uncomment with your username,
+      # restart, sign in with your password, then comment it out again.
+      # RESET_2FA_USER: alex
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/login"]
       interval: 60s

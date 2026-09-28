@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/lib/db";
 import { hashPassword, requireUser } from "@/lib/auth";
+import { resetTwoFactor } from "@/lib/twofactor";
 
 export async function createUser(
   formData: FormData
@@ -42,5 +43,15 @@ export async function deleteUser(formData: FormData) {
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id === admin.id) return;
   db.delete(schema.users).where(eq(schema.users.id, id)).run();
+  revalidatePath("/users");
+}
+
+/** Admin: clear another user's second factors (lost phone and codes). */
+export async function resetUserTwoFactor(formData: FormData) {
+  const admin = await requireUser();
+  if (admin.role !== "admin") return;
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id === admin.id) return;
+  resetTwoFactor(id);
   revalidatePath("/users");
 }
