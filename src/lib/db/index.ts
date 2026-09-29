@@ -54,7 +54,22 @@ function createDb() {
   return drizzle(sqlite, { schema });
 }
 
+/**
+ * Create/upgrade the schema and seed data.
+ *
+ * Runs as ONE `BEGIN IMMEDIATE` transaction: it takes the write lock up
+ * front, so concurrent bootstraps (`next build` runs several workers on the
+ * same file) queue behind each other via busy_timeout instead of
+ * interleaving. Otherwise two of them could both see a column missing and
+ * both ALTER ("duplicate column name"), or a reader upgrading to a writer
+ * would get SQLITE_BUSY immediately ("database is locked") — busy_timeout
+ * does not apply to that upgrade.
+ */
 function bootstrap(sqlite: Database.Database) {
+  sqlite.transaction(() => migrate(sqlite)).immediate();
+}
+
+function migrate(sqlite: Database.Database) {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,24 +177,21 @@ function bootstrap(sqlite: Database.Database) {
       .prepare("SELECT id FROM users WHERE username = ?")
       .get(resetUser) as { id: number } | undefined;
     if (u) {
-      sqlite.transaction(() => {
-        sqlite
-          .prepare(
-            "UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_last_step = NULL WHERE id = ?"
-          )
-          .run(u.id);
-        sqlite.prepare("DELETE FROM webauthn_credentials WHERE user_id = ?").run(u.id);
-        sqlite.prepare("DELETE FROM recovery_codes WHERE user_id = ?").run(u.id);
-        sqlite.prepare("DELETE FROM pending_logins WHERE user_id = ?").run(u.id);
-      })();
+      sqlite
+        .prepare(
+          "UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_last_step = NULL WHERE id = ?"
+        )
+        .run(u.id);
+      sqlite.prepare("DELETE FROM webauthn_credentials WHERE user_id = ?").run(u.id);
+      sqlite.prepare("DELETE FROM recovery_codes WHERE user_id = ?").run(u.id);
+      sqlite.prepare("DELETE FROM pending_logins WHERE user_id = ?").run(u.id);
       console.warn(
         `financial-adviser: two-factor authentication reset for "${resetUser}" (RESET_2FA_USER). Remove the variable now.`
       );
     }
   }
 
-  // Idempotent and safe under concurrent bootstrap (e.g. parallel build
-  // workers): INSERT OR IGNORE keyed on unique names, rules only seeded once.
+  // Idempotent: INSERT OR IGNORE keyed on unique names, rules only seeded once.
   const insertCat = sqlite.prepare(
     "INSERT OR IGNORE INTO categories (name, color) VALUES (?, ?)"
   );
@@ -192,7 +204,7 @@ function bootstrap(sqlite: Database.Database) {
   const insertRule = sqlite.prepare(
     "INSERT INTO rules (pattern, category_id, source) VALUES (?, ?, 'seed')"
   );
-  const tx = sqlite.transaction(() => {
+  {
     for (const cat of SEED_CATEGORIES) insertCat.run(cat.name, cat.color);
     // Per-pattern upsert so newly added seed rules also reach existing
     // databases on the next boot.
@@ -203,8 +215,7 @@ function bootstrap(sqlite: Database.Database) {
         if (!seedRuleExists.get(pattern, row.id)) insertRule.run(pattern, row.id);
       }
     }
-  });
-  tx();
+  }
 }
 
 export const db = globalThis.__faDb ?? createDb();
