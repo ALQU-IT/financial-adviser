@@ -59,7 +59,8 @@ the admin account. Data is stored in `./data/finance.db` (override with the
 The compose file includes a Caddy sidecar that serves the app at
 `https://<nas-ip>:3443` with a self-signed certificate from its own local CA
 (auto-generated, auto-renewed, persisted in the `caddy_data` volume).
-Port `3001` redirects to HTTPS, the app publishes no plain-HTTP port itself,
+Plain `http://` — on port `3443` itself or on the old port `3001` — redirects
+to HTTPS, the app publishes no plain-HTTP port itself,
 and the session cookie is marked `Secure` (`COOKIE_SECURE=true`).
 
 **Trusting the certificate (optional):** browsers warn about self-signed
