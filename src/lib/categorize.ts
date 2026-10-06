@@ -1,6 +1,7 @@
 import "server-only";
 import { eq, isNull, or } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { AUTO_IGNORE_PATTERNS } from "@/lib/db/seed";
 
 /** Normalize a merchant string for rule matching and grouping. */
 export function normalizeMerchant(raw: string): string {
@@ -41,4 +42,27 @@ export function categorize(
     if (merchantNorm.includes(rule.pattern)) return rule.categoryId;
   }
   return null;
+}
+
+/** The user's per-merchant ignore choices (pattern → ignore?). */
+export function loadIgnoreRules(userId: number): Map<string, boolean> {
+  const rows = db
+    .select({ pattern: schema.ignoreRules.pattern, ignored: schema.ignoreRules.ignored })
+    .from(schema.ignoreRules)
+    .where(eq(schema.ignoreRules.userId, userId))
+    .all();
+  return new Map(rows.map((r) => [r.pattern, r.ignored]));
+}
+
+/**
+ * Whether a transaction should be left out of totals: the user's own choice
+ * for this merchant wins; otherwise the built-in card-payment patterns.
+ */
+export function shouldIgnore(
+  merchantNorm: string,
+  userRules: Map<string, boolean>
+): boolean {
+  const own = userRules.get(merchantNorm);
+  if (own != null) return own;
+  return AUTO_IGNORE_PATTERNS.some((p) => merchantNorm.includes(p));
 }

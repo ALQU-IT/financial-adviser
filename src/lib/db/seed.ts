@@ -247,3 +247,24 @@ export const SEED_RULES: Record<string, string[]> = {
     "GEHALT",
   ],
 };
+
+/**
+ * Descriptions that are money moving between your own accounts — mainly
+ * paying the credit card bill — rather than spending or income. Imported
+ * rows matching these (substring of the normalized merchant, see
+ * normalizeMerchant) are ignored automatically; a user can still choose to
+ * count them, which overrides this per merchant.
+ */
+export const AUTO_IGNORE_PATTERNS = [
+  "IHRE ZAHLUNG", // Swisscard / Cembra: "Ihre Zahlung - Danke"
+  "ZAHLUNG - DANKE",
+  "ZAHLUNG DANKE",
+  "ZAHLUNGSEINGANG",
+  "VOTRE PAIEMENT", // French: "Votre paiement - merci"
+  "PAIEMENT - MERCI",
+  "IL SUO PAGAMENTO", // Italian
+  "PAGAMENTO - GRAZIE",
+  "PAYMENT - THANK YOU",
+  "PAYMENT THANK YOU",
+  "PAYMENT RECEIVED",
+];

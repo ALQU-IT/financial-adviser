@@ -27,7 +27,7 @@ export default async function UploadPage() {
       // The outer column must be qualified literally: an interpolated column
       // renders unqualified here and would resolve to t's own "id".
       txCount: sql<number>`(SELECT COUNT(*) FROM transactions t WHERE t.statement_id = statements.id)`,
-      total: sql<number>`(SELECT COALESCE(SUM(t.amount_cents), 0) FROM transactions t WHERE t.statement_id = statements.id AND t.amount_cents < 0)`,
+      total: sql<number>`(SELECT COALESCE(SUM(t.amount_cents), 0) FROM transactions t WHERE t.statement_id = statements.id AND t.amount_cents < 0 AND t.ignored = 0)`,
     })
     .from(schema.statements)
     .where(eq(schema.statements.userId, user.id))

@@ -60,9 +60,12 @@ export async function setCategory(
       .run();
   }
 
+  // Picking a category on an ignored merchant means "count it" again.
+  if (tx.ignored) saveIgnoreChoice(user.id, tx.merchantNorm, false);
+
   // This row and every other one of the merchant, whatever their category.
   db.update(schema.transactions)
-    .set({ categoryId })
+    .set({ categoryId, ignored: false })
     .where(
       and(
         eq(schema.transactions.userId, user.id),
@@ -73,5 +76,57 @@ export async function setCategory(
 
   revalidatePath("/");
   revalidatePath("/transactions");
+  return { ok: true };
+}
+
+/** Remember the user's ignore/count choice for a merchant (overrides auto). */
+function saveIgnoreChoice(userId: number, merchantNorm: string, ignored: boolean) {
+  db.insert(schema.ignoreRules)
+    .values({ userId, pattern: merchantNorm, ignored })
+    .onConflictDoUpdate({
+      target: [schema.ignoreRules.userId, schema.ignoreRules.pattern],
+      set: { ignored },
+    })
+    .run();
+}
+
+/**
+ * Ignore (or count again) a transaction and every other one of the same
+ * merchant — e.g. paying the card bill, which is neither spending nor
+ * income. Ignored rows stay listed but are left out of all totals; future
+ * imports of the merchant follow the choice.
+ */
+export async function setIgnored(
+  txId: number,
+  ignored: boolean
+): Promise<{ ok: boolean }> {
+  const user = await requireUser();
+  if (!Number.isInteger(txId)) return { ok: false };
+  const tx = db
+    .select({ merchantNorm: schema.transactions.merchantNorm })
+    .from(schema.transactions)
+    .where(
+      and(
+        eq(schema.transactions.id, txId),
+        eq(schema.transactions.userId, user.id)
+      )
+    )
+    .all()[0];
+  if (!tx) return { ok: false };
+
+  saveIgnoreChoice(user.id, tx.merchantNorm, !!ignored);
+  db.update(schema.transactions)
+    .set({ ignored: !!ignored })
+    .where(
+      and(
+        eq(schema.transactions.userId, user.id),
+        eq(schema.transactions.merchantNorm, tx.merchantNorm)
+      )
+    )
+    .run();
+
+  revalidatePath("/");
+  revalidatePath("/transactions");
+  revalidatePath("/upload");
   return { ok: true };
 }

@@ -123,4 +123,16 @@ export const transactions = sqliteTable("transactions", {
   categoryId: integer("category_id").references(() => categories.id, {
     onDelete: "set null",
   }),
+  // Listed but left out of every total (e.g. paying the card bill).
+  ignored: integer("ignored", { mode: "boolean" }).notNull().default(false),
+});
+
+/** Per-user, per-merchant choice: ignore (true) or always count (false). */
+export const ignoreRules = sqliteTable("ignore_rules", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  pattern: text("pattern").notNull(),
+  ignored: integer("ignored", { mode: "boolean" }).notNull(),
 });

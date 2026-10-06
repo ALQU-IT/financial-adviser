@@ -58,11 +58,14 @@ export default async function DashboardPage({
   const years = [...new Set(months.map((m) => m.slice(0, 4)))];
   const period = resolvePeriod(params, months, years);
 
+  // Every figure below goes through this, so ignored transactions (card
+  // payments and the like) never count anywhere on the dashboard.
   const inRange = (start: string, endEx: string) =>
     and(
       eq(schema.transactions.userId, user.id),
       gte(schema.transactions.date, start),
-      lt(schema.transactions.date, endEx)
+      lt(schema.transactions.date, endEx),
+      eq(schema.transactions.ignored, false)
     );
 
   const totals = db

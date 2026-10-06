@@ -60,33 +60,52 @@ export default async function TransactionsPage({
     .orderBy(schema.categories.name)
     .all();
 
-  // Optional category filter (from clicking a bar on the dashboard). An
-  // unknown id is ignored rather than showing an empty list.
-  const catFilter: { id: number | null; name: string } | null =
-    params.cat === "none"
-      ? { id: null, name: "Uncategorized" }
-      : (categories.find((c) => String(c.id) === params.cat) ?? null);
+  // Optional filter: a category (from clicking it on the dashboard),
+  // "none" for uncategorized, or "ignored". An unknown id is ignored rather
+  // than showing an empty list.
+  const catFilter: { id: number | null | "ignored"; name: string } | null =
+    params.cat === "ignored"
+      ? { id: "ignored", name: "Ignored" }
+      : params.cat === "none"
+        ? { id: null, name: "Uncategorized" }
+        : (categories.find((c) => String(c.id) === params.cat) ?? null);
 
-  const rangeWhere = and(
+  const inPeriod = and(
     eq(schema.transactions.userId, user.id),
     gte(schema.transactions.date, period.start),
-    lt(schema.transactions.date, period.endEx),
+    lt(schema.transactions.date, period.endEx)
+  );
+  // Without a filter everything is listed (ignored rows dimmed); a category
+  // filter matches the dashboard, which never counts ignored rows.
+  const rangeWhere = and(
+    inPeriod,
     catFilter == null
       ? undefined
-      : catFilter.id == null
-        ? isNull(schema.transactions.categoryId)
-        : eq(schema.transactions.categoryId, catFilter.id)
+      : catFilter.id === "ignored"
+        ? eq(schema.transactions.ignored, true)
+        : and(
+            eq(schema.transactions.ignored, false),
+            catFilter.id == null
+              ? isNull(schema.transactions.categoryId)
+              : eq(schema.transactions.categoryId, catFilter.id)
+          )
   );
   const catQuery = catFilter ? `cat=${catFilter.id ?? "none"}` : undefined;
 
-  const summary = db
+  const counts = db
     .select({
-      count: sql<number>`COUNT(*)`,
-      spend: sql<number>`COALESCE(SUM(CASE WHEN ${schema.transactions.amountCents} < 0 THEN -${schema.transactions.amountCents} ELSE 0 END), 0)`,
+      listed: sql<number>`COUNT(*)`,
+      counted: sql<number>`COALESCE(SUM(CASE WHEN ${schema.transactions.ignored} = 0 THEN 1 ELSE 0 END), 0)`,
+      spend: sql<number>`COALESCE(SUM(CASE WHEN ${schema.transactions.ignored} = 0 AND ${schema.transactions.amountCents} < 0 THEN -${schema.transactions.amountCents} ELSE 0 END), 0)`,
     })
     .from(schema.transactions)
     .where(rangeWhere)
     .all()[0];
+  const ignoredInPeriod = db
+    .select({ n: sql<number>`COUNT(*)` })
+    .from(schema.transactions)
+    .where(and(inPeriod, eq(schema.transactions.ignored, true)))
+    .all()[0].n;
 
   const txs = db
     .select()
@@ -102,9 +121,9 @@ export default async function TransactionsPage({
     const last = days[days.length - 1];
     if (last?.date === tx.date) {
       last.rows.push(tx);
-      last.net += tx.amountCents;
+      if (!tx.ignored) last.net += tx.amountCents;
     } else {
-      days.push({ date: tx.date, net: tx.amountCents, rows: [tx] });
+      days.push({ date: tx.date, net: tx.ignored ? 0 : tx.amountCents, rows: [tx] });
     }
   }
   const colorById = new Map(categories.map((c) => [c.id, c.color]));
@@ -116,8 +135,19 @@ export default async function TransactionsPage({
         subtitle={
           <>
             {period.label.charAt(0).toUpperCase() + period.label.slice(1)} ·{" "}
-            {summary.count} transactions ·{" "}
-            {formatCents(summary.spend)} spent
+            {counts.counted} transactions ·{" "}
+            {formatCents(counts.spend)} spent
+            {catFilter == null && ignoredInPeriod > 0 && (
+              <>
+                {" · "}
+                <Link
+                  href={`/transactions?${periodQuery(period)}&cat=ignored`}
+                  className="underline-offset-2 hover:text-primary hover:underline"
+                >
+                  {ignoredInPeriod} ignored
+                </Link>
+              </>
+            )}
           </>
         }
       >
@@ -144,7 +174,9 @@ export default async function TransactionsPage({
         {catFilter && (
           <div className="mb-4 flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-container-inset py-1 pl-3 pr-1 text-sm">
-              <span className="text-secondary">Category:</span>
+              <span className="text-secondary">
+                {catFilter.id === "ignored" ? "Showing:" : "Category:"}
+              </span>
               <span className="font-medium">{catFilter.name}</span>
               <Link
                 href={`/transactions?${periodQuery(period)}`}
@@ -188,11 +220,16 @@ export default async function TransactionsPage({
                         // One grid, two arrangements: on phones the category
                         // drops under the name (row 2); from md up it is its
                         // own column. A single select either way.
-                        className={`grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 p-3 text-sm md:grid-cols-12 lg:p-4 ${
+                        data-ignored={tx.ignored ? "" : undefined}
+                        className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 p-3 text-sm md:grid-cols-12 lg:p-4 ${
                           i > 0 ? "border-t border-divider" : ""
                         }`}
                       >
-                        <div className="flex min-w-0 items-center gap-3 md:col-span-6 lg:gap-4">
+                        <div
+                          className={`flex min-w-0 items-center gap-3 md:col-span-6 lg:gap-4 ${
+                            tx.ignored ? "opacity-50" : ""
+                          }`}
+                        >
                           <MerchantAvatar
                             name={tx.merchant}
                             color={
@@ -205,17 +242,23 @@ export default async function TransactionsPage({
                             {tx.merchant}
                           </p>
                         </div>
-                        <div className="row-start-2 pl-12 md:col-span-4 md:row-start-auto md:pl-0 lg:pl-0">
+                        <div className="col-span-2 row-start-2 pl-12 md:col-span-4 md:row-start-auto md:pl-0 lg:pl-0">
                           <CategorySelect
                             txId={tx.id}
                             value={tx.categoryId}
+                            ignored={tx.ignored}
                             categories={categories}
                           />
                         </div>
                         <p
                           className={`col-start-2 row-start-1 text-right font-medium tabular-nums md:col-span-2 md:col-start-auto md:row-start-auto ${
-                            tx.amountCents > 0 ? "text-success" : "text-primary"
+                            tx.ignored
+                              ? "text-subdued line-through"
+                              : tx.amountCents > 0
+                                ? "text-success"
+                                : "text-primary"
                           }`}
+                          title={tx.ignored ? "Ignored — not counted in any total" : undefined}
                         >
                           {tx.amountCents > 0 ? "+" : ""}
                           {formatCents(tx.amountCents)}
@@ -230,15 +273,16 @@ export default async function TransactionsPage({
         )}
       </Card>
 
-      {summary.count > MAX_ROWS && (
+      {counts.listed > MAX_ROWS && (
         <p className="mt-3 text-xs text-warning">
-          Showing the {MAX_ROWS} most recent of {summary.count} transactions —
+          Showing the {MAX_ROWS} most recent of {counts.listed} transactions —
           narrow the period to see the rest.
         </p>
       )}
       <p className="mt-3 text-xs text-secondary">
-        Changing a category applies it to every transaction from the same
-        merchant, including future imports.
+        Changing a category — or choosing “Ignore” for money moved between
+        your own accounts, like paying the card bill — applies to every
+        transaction from the same merchant, including future imports.
       </p>
     </div>
   );

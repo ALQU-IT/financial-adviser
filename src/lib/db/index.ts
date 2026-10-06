@@ -1,9 +1,10 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import * as schema from "./schema";
-import { SEED_CATEGORIES, SEED_RULES } from "./seed";
+import { AUTO_IGNORE_PATTERNS, SEED_CATEGORIES, SEED_RULES } from "./seed";
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
 
@@ -47,10 +48,13 @@ function createDb() {
   // busy_timeout first: it must be active before the WAL conversion below,
   // which takes an exclusive lock and would otherwise fail with SQLITE_BUSY
   // when two processes (e.g. parallel build workers) bootstrap concurrently.
-  sqlite.pragma("busy_timeout = 5000");
+  // Generous during startup: under `next build` every core is busy and
+  // several workers queue for the one bootstrap below.
+  sqlite.pragma("busy_timeout = 30000");
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   bootstrap(sqlite);
+  sqlite.pragma("busy_timeout = 5000");
   return drizzle(sqlite, { schema });
 }
 
@@ -66,8 +70,38 @@ function createDb() {
  * does not apply to that upgrade.
  */
 function bootstrap(sqlite: Database.Database) {
-  sqlite.transaction(() => migrate(sqlite)).immediate();
+  // Fast path: an up-to-date database needs nothing, so don't take the
+  // write lock at all — only the first of many concurrent workers then
+  // makes the others wait. (RESET_2FA_USER must always run.)
+  const current = () => sqlite.pragma("user_version", { simple: true }) === BOOTSTRAP_VERSION;
+  if (current() && !process.env.RESET_2FA_USER?.trim()) return;
+  sqlite
+    .transaction(() => {
+      // Re-check under the lock: another worker may have just finished.
+      if (current() && !process.env.RESET_2FA_USER?.trim()) return;
+      migrate(sqlite);
+      sqlite.pragma(`user_version = ${BOOTSTRAP_VERSION}`);
+    })
+    .immediate();
 }
+
+/**
+ * Identifies what migrate() produces: bump SCHEMA_REV when changing the
+ * schema or migrations; seed data is hashed in, so editing seed.ts alone
+ * also re-runs the (idempotent) bootstrap on existing databases.
+ */
+const SCHEMA_REV = 3;
+const BOOTSTRAP_VERSION =
+  parseInt(
+    crypto
+      .createHash("sha256")
+      .update(
+        JSON.stringify([SCHEMA_REV, SEED_CATEGORIES, SEED_RULES, AUTO_IGNORE_PATTERNS])
+      )
+      .digest("hex")
+      .slice(0, 7),
+    16
+  ) || 1;
 
 function migrate(sqlite: Database.Database) {
   sqlite.exec(`
@@ -168,6 +202,31 @@ function migrate(sqlite: Database.Database) {
     sqlite.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0");
   if (!userCols.has("totp_last_step"))
     sqlite.exec("ALTER TABLE users ADD COLUMN totp_last_step INTEGER");
+
+  // Ignored transactions (e.g. paying the card bill): listed, never counted.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS ignore_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      pattern TEXT NOT NULL, -- normalized merchant
+      ignored INTEGER NOT NULL -- 1 = ignore, 0 = always count (overrides auto)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignore_rules_user_pattern
+      ON ignore_rules(user_id, pattern);
+  `);
+  const txCols = new Set(
+    (sqlite.prepare("PRAGMA table_info(transactions)").all() as { name: string }[]).map(
+      (c) => c.name
+    )
+  );
+  if (!txCols.has("ignored")) {
+    sqlite.exec("ALTER TABLE transactions ADD COLUMN ignored INTEGER NOT NULL DEFAULT 0");
+    // One-time: card payments imported before this existed stop counting.
+    const mark = sqlite.prepare(
+      "UPDATE transactions SET ignored = 1 WHERE merchant_norm LIKE '%' || ? || '%'"
+    );
+    for (const pattern of AUTO_IGNORE_PATTERNS) mark.run(pattern);
+  }
 
   // Lockout escape hatch for a self-hosted box: RESET_2FA_USER=<username>
   // clears that user's second factors on start (then remove the variable).

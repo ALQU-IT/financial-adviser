@@ -4,7 +4,13 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { categorize, loadRules, normalizeMerchant } from "@/lib/categorize";
+import {
+  categorize,
+  loadIgnoreRules,
+  loadRules,
+  normalizeMerchant,
+  shouldIgnore,
+} from "@/lib/categorize";
 
 export type ImportRow = {
   date: string; // ISO YYYY-MM-DD
@@ -59,6 +65,7 @@ export async function importTransactions(payload: ImportPayload): Promise<
   }
 
   const rules = loadRules(user.id);
+  const ignoreRules = loadIgnoreRules(user.id);
   let categorized = 0;
 
   const statementRes = db
@@ -85,6 +92,7 @@ export async function importTransactions(payload: ImportPayload): Promise<
       merchantNorm,
       amountCents: row.amountCents,
       categoryId,
+      ignored: shouldIgnore(merchantNorm, ignoreRules),
     };
   });
   const duplicates = countDuplicates(user.id, values);
