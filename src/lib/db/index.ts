@@ -277,7 +277,27 @@ function migrate(sqlite: Database.Database) {
   }
 }
 
-export const db = globalThis.__faDb ?? createDb();
-if (process.env.NODE_ENV !== "production") globalThis.__faDb = db;
+type Db = ReturnType<typeof createDb>;
+
+function getDb(): Db {
+  if (!globalThis.__faDb) globalThis.__faDb = createDb();
+  return globalThis.__faDb;
+}
+
+/**
+ * Opened on first use, not on import. `next build` imports every page in
+ * several parallel workers just to read their configuration; opening (and
+ * migrating) the database there made those workers race for the same file
+ * and occasionally failed the build with "database is locked". No page
+ * queries data at build time, so now the build never touches the database.
+ * One connection per process, kept on globalThis so dev hot reloads reuse it.
+ */
+export const db: Db = new Proxy({} as Db, {
+  get(_target, prop) {
+    const real = getDb();
+    const value = Reflect.get(real, prop, real);
+    return typeof value === "function" ? value.bind(real) : value;
+  },
+});
 
 export { schema };

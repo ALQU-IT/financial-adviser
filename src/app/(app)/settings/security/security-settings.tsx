@@ -12,6 +12,7 @@ import {
   Smartphone,
   Trash2,
 } from "lucide-react";
+import { describeWebAuthnError } from "@/lib/webauthn-errors";
 import {
   beginKeyRegistration,
   beginTotp,
@@ -349,12 +350,8 @@ function KeysCard({
       try {
         response = await startRegistration({ optionsJSON: opts.options });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "";
-        return setError(
-          /excluded|already registered/i.test(msg)
-            ? "This security key is already registered."
-            : "The security key prompt was cancelled or timed out."
-        );
+        console.error("Security key registration failed:", e);
+        return setError(describeWebAuthnError(e));
       }
       const res = await finishKeyRegistration(name || defaultKeyName(), response);
       if (!res.ok) return setError(res.error);

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { KeyRound } from "lucide-react";
+import { describeWebAuthnError } from "@/lib/webauthn-errors";
 import { cancelVerify, keyLoginOptions, keyLoginVerify, verifyCode } from "./actions";
 
 export function VerifyForm({
@@ -48,8 +49,9 @@ export function VerifyForm({
       let response;
       try {
         response = await startAuthentication({ optionsJSON: opts.options });
-      } catch {
-        setError("The security key prompt was cancelled or timed out.");
+      } catch (e) {
+        console.error("Security key sign-in failed:", e);
+        setError(describeWebAuthnError(e));
         return;
       }
       handle(await keyLoginVerify(response));

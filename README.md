@@ -63,13 +63,35 @@ Plain `http://` — on port `3443` itself or on the old port `3001` — redirect
 to HTTPS, the app publishes no plain-HTTP port itself,
 and the session cookie is marked `Secure` (`COOKIE_SECURE=true`).
 
-**Trusting the certificate (optional):** browsers warn about self-signed
-certs. To remove the warning, export Caddy's root CA once and import it on
-your devices (Settings → Certificates → Trusted Roots, or the keychain):
+**Trusting the certificate** — optional for normal use, but **required for
+security keys / passkeys**: Chrome, Brave and Edge refuse them on any page
+showing “Not secure”. Export Caddy's root certificate once and install it on
+each device:
 
-```bash
-docker cp financial-adviser-tls:/data/caddy/pki/authorities/local/root.crt .
-```
+1. On the NAS (TrueNAS: System → Shell), copy it out of the Caddy container:
+
+   ```bash
+   sudo docker cp financial-adviser-tls:/data/caddy/pki/authorities/local/root.crt /mnt/tank/apps/caddy-root.crt
+   ```
+
+   (any dataset path you can reach from your PC, e.g. an SMB share). The
+   certificate persists across updates, so this is a one-time step.
+2. Install it on each device:
+   - **Windows** (Chrome, Brave, Edge): double-click `caddy-root.crt` →
+     *Install Certificate…* → *Current User* → *Place all certificates in the
+     following store* → *Browse…* → **Trusted Root Certification
+     Authorities** → Finish, and confirm the security warning.
+   - **macOS**: open it in Keychain Access → *System* keychain → double-click
+     the certificate → *Trust* → *Always Trust*.
+   - **iPhone/iPad**: AirDrop or mail it to yourself → install the profile
+     (Settings → *Profile Downloaded*) → then Settings → General → About →
+     **Certificate Trust Settings** → enable it.
+   - **Android**: Settings → Security → *Install a certificate* → *CA
+     certificate*.
+   - **Firefox** keeps its own list: Settings → Privacy & Security →
+     Certificates → *View Certificates* → Authorities → Import.
+3. **Fully restart the browser** (all windows) and open the app by its
+   hostname. The address bar no longer says “Not secure”.
 
 Environment variables:
 
