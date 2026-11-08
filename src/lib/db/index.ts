@@ -42,9 +42,23 @@ function openDatabase(file: string): Database.Database {
   }
 }
 
+/** chmod 600 the database and its WAL/SHM files (best effort). */
+function restrictPermissions(file: string) {
+  for (const f of [DATA_DIR, file, `${file}-wal`, `${file}-shm`]) {
+    try {
+      fs.chmodSync(f, f === DATA_DIR ? 0o700 : 0o600);
+    } catch {
+      // Missing file, or a filesystem that ignores modes: nothing to do.
+    }
+  }
+}
+
 function createDb() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const sqlite = openDatabase(path.join(DATA_DIR, "finance.db"));
+  // The database holds password hashes, 2FA secrets and session data: keep
+  // it readable by the app user only, whatever the umask or host dataset.
+  fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+  const file = path.join(DATA_DIR, "finance.db");
+  const sqlite = openDatabase(file);
   // busy_timeout first: it must be active before the WAL conversion below,
   // which takes an exclusive lock and would otherwise fail with SQLITE_BUSY
   // when two processes (e.g. parallel build workers) bootstrap concurrently.
@@ -53,6 +67,7 @@ function createDb() {
   sqlite.pragma("busy_timeout = 30000");
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
+  restrictPermissions(file);
   bootstrap(sqlite);
   sqlite.pragma("busy_timeout = 5000");
   return drizzle(sqlite, { schema });

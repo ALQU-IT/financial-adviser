@@ -116,8 +116,8 @@ forced to. Once on, signing in needs the password plus one of:
 - **Recovery code**: 10 one-time codes are shown when you turn on your first
   method. Save them.
 
-Turning a method off, removing a key or regenerating recovery codes asks for
-the password again. Admins can **Reset 2FA** for another user on the Users
+Adding or turning off a method, removing a key or regenerating recovery
+codes asks for the password again. Admins can **Reset 2FA** for another user on the Users
 page.
 
 **Security keys need a hostname and a trusted certificate.** Browsers refuse
@@ -141,6 +141,28 @@ with your password, then remove the variable and restart again.
 > **Note:** keep the app LAN-only and use your VPN (WireGuard/Tailscale) for
 > remote access. Don't port-forward it to the internet without an extra auth
 > layer in front.
+
+### Security
+
+- **Headers:** every response carries a Content-Security-Policy (own scripts
+  and styles only, `frame-ancestors 'none'`), `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, a
+  Permissions-Policy that allows only WebAuthn, and same-origin COOP/CORP.
+  `X-Powered-By` is off. HSTS is deliberately not sent: browsers apply it to
+  the whole hostname, which would force HTTPS on other apps on the same NAS.
+- **Sign-in limits:** 10 wrong passwords from one address, or 10 wrong
+  2FA codes for one account, block further attempts for 15 minutes. Password
+  checks run at most two at a time.
+- **Data at rest:** the database folder is `700` and its files `600`, and
+  session tokens are stored only as hashes. Keep snapshots and replicas of
+  the dataset as private as the live data: they still contain password
+  hashes and 2FA secrets.
+- **Imports:** at most 2000 remembered category rules per user, and very
+  large imports against many rules are refused (split the file).
+- Caddy issues certificates on demand for whatever name or IP you reach it
+  by (`tls internal { on_demand }`). That is fine on a LAN; if port 3443 is
+  ever reachable from untrusted networks, replace it with your explicit
+  hostnames.
 
 ## License
 

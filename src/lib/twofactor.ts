@@ -4,6 +4,8 @@ import { cookies, headers } from "next/headers";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { Secret, TOTP } from "otpauth";
 import { db, schema } from "@/lib/db";
+import { tokenHash } from "@/lib/auth";
+import { secondFactorFailuresByUser } from "@/lib/throttle";
 
 /*
  * Optional two-factor authentication. A user who has turned on an
@@ -164,7 +166,14 @@ export async function startPendingLogin(userId: number) {
   db.delete(schema.pendingLogins)
     .where(lt(schema.pendingLogins.expiresAt, new Date()))
     .run();
-  db.insert(schema.pendingLogins).values({ token, userId, expiresAt }).run();
+  // One sign-in in progress per account: a new password entry replaces the
+  // old one instead of adding a second set of code attempts.
+  db.delete(schema.pendingLogins)
+    .where(eq(schema.pendingLogins.userId, userId))
+    .run();
+  db.insert(schema.pendingLogins)
+    .values({ token: tokenHash(token), userId, expiresAt })
+    .run();
   (await cookies()).set(PENDING_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -187,9 +196,10 @@ export async function getPendingLogin(): Promise<PendingLogin | null> {
   const row = db
     .select()
     .from(schema.pendingLogins)
-    .where(eq(schema.pendingLogins.token, token))
+    .where(eq(schema.pendingLogins.token, tokenHash(token)))
     .all()[0];
   if (!row || row.expiresAt < new Date() || row.attempts >= MAX_ATTEMPTS) return null;
+  if (secondFactorFailuresByUser.blocked(String(row.userId))) return null;
   return {
     token: row.token,
     userId: row.userId,
@@ -200,12 +210,21 @@ export async function getPendingLogin(): Promise<PendingLogin | null> {
 
 /** Count a failed attempt; returns attempts left (0 = pending login voided). */
 export function failPendingAttempt(p: PendingLogin): number {
-  const attempts = p.attempts + 1;
-  db.update(schema.pendingLogins)
-    .set({ attempts })
+  secondFactorFailuresByUser.fail(String(p.userId));
+  // Increment in SQL so concurrent wrong codes are all counted.
+  const row = db
+    .update(schema.pendingLogins)
+    .set({ attempts: sql`${schema.pendingLogins.attempts} + 1` })
     .where(eq(schema.pendingLogins.token, p.token))
-    .run();
-  return Math.max(0, MAX_ATTEMPTS - attempts);
+    .returning({ attempts: schema.pendingLogins.attempts })
+    .all()[0];
+  if (secondFactorFailuresByUser.blocked(String(p.userId))) return 0;
+  return Math.max(0, MAX_ATTEMPTS - (row?.attempts ?? MAX_ATTEMPTS));
+}
+
+/** A successful second factor clears the account's failure count. */
+export function clearSecondFactorFailures(userId: number) {
+  secondFactorFailuresByUser.reset(String(userId));
 }
 
 export function setPendingChallenge(p: PendingLogin, challenge: string) {

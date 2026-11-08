@@ -13,6 +13,7 @@ import { createSession } from "@/lib/auth";
 import {
   b64url,
   checkTotp,
+  clearSecondFactorFailures,
   endPendingLogin,
   failPendingAttempt,
   getPendingLogin,
@@ -38,6 +39,7 @@ async function voidAndExplain(
 }
 
 async function finish(userId: number, pending: Awaited<ReturnType<typeof getPendingLogin>>) {
+  clearSecondFactorFailures(userId);
   await endPendingLogin(pending);
   await createSession(userId);
   redirect("/");

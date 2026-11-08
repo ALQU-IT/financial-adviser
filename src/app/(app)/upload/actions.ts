@@ -33,6 +33,12 @@ export type ImportPayload = {
 };
 
 const MAX_ROWS = 10000;
+/**
+ * Categorizing is rows × rules string matching on the shared server. The
+ * budget admits a full-size import at the per-user rule cap (2000) plus the
+ * built-in rules.
+ */
+const MAX_MATCH_WORK = 25_000_000;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function importTransactions(payload: ImportPayload): Promise<
@@ -65,6 +71,11 @@ export async function importTransactions(payload: ImportPayload): Promise<
   }
 
   const rules = loadRules(user.id);
+  if (rows.length * rules.length > MAX_MATCH_WORK)
+    return {
+      ok: false,
+      error: "Too many category rules for an import this large. Split the file into smaller parts.",
+    };
   const ignoreRules = loadIgnoreRules(user.id);
   let categorized = 0;
 

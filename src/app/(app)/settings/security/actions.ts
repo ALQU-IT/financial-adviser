@@ -27,16 +27,27 @@ import {
   userCredentials,
 } from "@/lib/twofactor";
 
+import { loginFailuresByClient, withHashSlot } from "@/lib/throttle";
+
 type Result = { ok: true; recoveryCodes?: string[] } | { ok: false; error: string };
 
-/** Turning things off needs the password again, not just a live session. */
+/**
+ * Adding or removing a sign-in factor needs the password again, not just a
+ * live session: someone holding a stolen session cookie must not be able to
+ * link their own key or authenticator and lock the owner out.
+ */
 async function confirmPassword(userId: number, password: string): Promise<boolean> {
+  const key = `confirm:${userId}`;
+  if (loginFailuresByClient.blocked(key)) return false;
   const row = db
     .select({ hash: schema.users.passwordHash })
     .from(schema.users)
     .where(eq(schema.users.id, userId))
     .all()[0];
-  return !!row && (await verifyPassword(password, row.hash));
+  const ok = !!row && (await withHashSlot(() => verifyPassword(password, row.hash))) === true;
+  if (ok) loginFailuresByClient.reset(key);
+  else loginFailuresByClient.fail(key);
+  return ok;
 }
 
 /** First factor added → hand out recovery codes (shown once). */
@@ -52,10 +63,12 @@ function done() {
 
 // ---------------------------------------------------------------- TOTP
 
-export async function beginTotp(): Promise<
+export async function beginTotp(password: string): Promise<
   { ok: true; secret: string; qr: string } | { ok: false; error: string }
 > {
   const user = await requireUser();
+  if (!(await confirmPassword(user.id, String(password))))
+    return { ok: false, error: "Wrong password." };
   if (twoFactorStatus(user.id).totp)
     return { ok: false, error: "The authenticator app is already set up." };
   const secret = newTotpSecret();
@@ -109,11 +122,13 @@ export async function disableTotp(password: string): Promise<Result> {
 
 // ---------------------------------------------------------------- security keys
 
-export async function beginKeyRegistration(): Promise<
+export async function beginKeyRegistration(password: string): Promise<
   | { ok: true; options: PublicKeyCredentialCreationOptionsJSON }
   | { ok: false; error: string }
 > {
   const user = await requireUser();
+  if (!(await confirmPassword(user.id, String(password))))
+    return { ok: false, error: "Wrong password." };
   const rp = await relyingParty();
   if (!rp.usable)
     return {
@@ -162,13 +177,11 @@ export async function finishKeyRegistration(
     if (!res.verified) return { ok: false, error: "The security key could not be verified." };
     info = res.registrationInfo;
   } catch (e) {
-    return {
-      ok: false,
-      error: `The security key could not be verified${e instanceof Error ? `: ${e.message}` : "."}`,
-    };
+    console.error("Security key registration could not be verified:", e);
+    return { ok: false, error: "The security key could not be verified." };
   }
   const cred = info.credential;
-  db.insert(schema.webauthnCredentials)
+  const inserted = db.insert(schema.webauthnCredentials)
     .values({
       id: cred.id,
       userId: user.id,
@@ -180,6 +193,8 @@ export async function finishKeyRegistration(
     })
     .onConflictDoNothing()
     .run();
+  if (inserted.changes === 0)
+    return { ok: false, error: "This security key is already registered." };
   const recoveryCodes = codesIfFirstFactor(user.id);
   done();
   return { ok: true, recoveryCodes };

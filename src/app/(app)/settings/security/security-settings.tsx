@@ -72,15 +72,17 @@ function Card({
   );
 }
 
-/** Password prompt guarding the "turn off" actions. */
+/** Password prompt guarding adding and removing sign-in factors. */
 function ConfirmWithPassword({
   label,
   onConfirm,
   onCancel,
+  danger = true,
 }: {
   label: string;
   onConfirm: (password: string) => Promise<string | null>;
   onCancel: () => void;
+  danger?: boolean;
 }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +107,11 @@ function ConfirmWithPassword({
           className="field mt-1"
         />
       </label>
-      <button type="submit" disabled={pending} className="btn-primary bg-destructive! text-white!">
+      <button
+        type="submit"
+        disabled={pending}
+        className={danger ? "btn-primary bg-destructive! text-white!" : "btn-primary"}
+      >
         {pending ? "…" : label}
       </button>
       <button type="button" onClick={onCancel} className="btn-secondary">
@@ -197,6 +203,7 @@ function TotpCard({
 }) {
   const [setup, setSetup] = useState<{ secret: string; qr: string } | null>(null);
   const [disabling, setDisabling] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -293,21 +300,29 @@ function TotpCard({
             </form>
           </div>
         </div>
+      ) : starting ? (
+        <ConfirmWithPassword
+          label="Continue"
+          danger={false}
+          onCancel={() => setStarting(false)}
+          onConfirm={async (pw) => {
+            const res = await beginTotp(pw);
+            if (!res.ok) return res.error;
+            setStarting(false);
+            setSetup({ secret: res.secret, qr: res.qr });
+            return null;
+          }}
+        />
       ) : (
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm text-secondary">Not set up.</p>
           <button
             type="button"
             className="btn-primary"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                setError(null);
-                const res = await beginTotp();
-                if (!res.ok) return setError(res.error);
-                setSetup({ secret: res.secret, qr: res.qr });
-              })
-            }
+            onClick={() => {
+              setError(null);
+              setStarting(true);
+            }}
           >
             Set up
           </button>
@@ -328,6 +343,7 @@ function KeysCard({
   onChanged: (codes?: string[]) => void;
 }) {
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -344,7 +360,7 @@ function KeysCard({
   function register() {
     setError(null);
     start(async () => {
-      const opts = await beginKeyRegistration();
+      const opts = await beginKeyRegistration(password);
       if (!opts.ok) return setError(opts.error);
       let response;
       try {
@@ -356,6 +372,7 @@ function KeysCard({
       const res = await finishKeyRegistration(name || defaultKeyName(), response);
       if (!res.ok) return setError(res.error);
       setName("");
+      setPassword("");
       setAdding(false);
       onChanged(res.recoveryCodes);
     });
@@ -443,10 +460,28 @@ function KeysCard({
                 className="field mt-1"
               />
             </label>
+            <label className="block min-w-48 flex-1">
+              <span className="text-sm font-medium">Your password</span>
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="field mt-1"
+              />
+            </label>
             <button type="submit" disabled={pending} className="btn-primary">
               {pending ? "Waiting for key…" : "Continue"}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => setAdding(false)}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setAdding(false);
+                setPassword("");
+              }}
+            >
               Cancel
             </button>
           </form>

@@ -8,6 +8,9 @@
 # no manual chown on the host is needed.
 set -e
 
+# Files the app creates (the database, its WAL/SHM) are for the app user only.
+umask 077
+
 DATA_DIR="${DATA_DIR:-/data}"
 APP_UID="${PUID:-568}"
 APP_GID="${PGID:-568}"
@@ -31,7 +34,7 @@ if [ "$(id -u)" = "0" ]; then
   if ! su-exec "${APP_UID}:${APP_GID}" test -w "$DATA_DIR" 2>/dev/null; then
     echo "financial-adviser: $DATA_DIR not writable by ${APP_UID}:${APP_GID}, repairing ownership and permissions" >&2
     chown -R "${APP_UID}:${APP_GID}" "$DATA_DIR" 2>/dev/null || true
-    chmod -R u+rwX "$DATA_DIR" 2>/dev/null || true
+    chmod -R u+rwX,go-rwx "$DATA_DIR" 2>/dev/null || true
   fi
 
   su-exec "${APP_UID}:${APP_GID}" test -w "$DATA_DIR" 2>/dev/null ||

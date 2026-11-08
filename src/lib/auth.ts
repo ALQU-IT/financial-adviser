@@ -17,6 +17,14 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
+/**
+ * Only a hash of the session token is stored, so a copy of the database
+ * (backup, snapshot, readable file) does not contain usable sessions.
+ */
+export function tokenHash(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 export async function createSession(userId: number) {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
@@ -24,7 +32,9 @@ export async function createSession(userId: number) {
   db.delete(schema.sessions)
     .where(lt(schema.sessions.expiresAt, new Date()))
     .run();
-  db.insert(schema.sessions).values({ token, userId, expiresAt }).run();
+  db.insert(schema.sessions)
+    .values({ token: tokenHash(token), userId, expiresAt })
+    .run();
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -39,7 +49,9 @@ export async function destroySession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (token) {
-    db.delete(schema.sessions).where(eq(schema.sessions.token, token)).run();
+    db.delete(schema.sessions)
+      .where(eq(schema.sessions.token, tokenHash(token)))
+      .run();
     cookieStore.delete(SESSION_COOKIE);
   }
 }
@@ -63,7 +75,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.sessions.userId, schema.users.id))
-    .where(eq(schema.sessions.token, token))
+    .where(eq(schema.sessions.token, tokenHash(token)))
     .all();
   const row = rows[0];
   if (!row || row.expiresAt < new Date()) return null;

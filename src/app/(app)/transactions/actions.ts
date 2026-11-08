@@ -1,9 +1,12 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+
+/** Most category rules one user can store (see importTransactions). */
+const MAX_USER_RULES = 2000;
 
 /**
  * Set the category of a transaction and of every other transaction of the
@@ -49,7 +52,16 @@ export async function setCategory(
       )
     )
     .run();
-  if (categoryId != null) {
+  // Rules are matched against every imported row, so their number is capped
+  // to keep imports fast. At the cap the transactions still change; only no
+  // new rule is remembered for future imports.
+  const ruleCount =
+    db
+      .select({ c: sql<number>`count(*)` })
+      .from(schema.rules)
+      .where(eq(schema.rules.userId, user.id))
+      .all()[0]?.c ?? 0;
+  if (categoryId != null && ruleCount < MAX_USER_RULES) {
     db.insert(schema.rules)
       .values({
         pattern: tx.merchantNorm,
